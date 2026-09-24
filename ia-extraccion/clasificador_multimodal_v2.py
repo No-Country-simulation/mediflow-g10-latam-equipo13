@@ -8,7 +8,7 @@ from google.genai import types
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # 2. Definir la ruta del archivo del examen de laboratorio
-ruta_archivo = "recibidos/examen_laboratorio.pdf"  
+ruta_archivo = "recibidos/prueba.pdf"  
 
 print(f"Cargando documento desde el repositorio de ingesta: {ruta_archivo}...")
 
@@ -25,35 +25,53 @@ for intento in range(1, max_intentos + 1):
         archivo_subido = client.files.upload(file=ruta_archivo)
         print("¡Archivo de 6 páginas cargado exitosamente en el buffer de la API!")
 
-        # 4. Prompt avanzado para Clasificación + Extracción de Entidades
+        # 4. Prompt avanzado para Clasificación + Extracción de Entidades (Alineado con rúbrica oficial)
         prompt_multimodal = """
         Actúa como el motor de clasificación y extracción inteligente de documentos clínicos para el proyecto MediFlow.
-        Analiza el documento adjunto completo (multinivel/multipage) y realiza las siguientes tareas:
-        1. Clasifícalo estrictamente en una de estas categorías: Receta, Informe de Estudio, Orden de Procedimiento, Epicrisis o Certificado Médico.
-        2. Extrae los datos clave del paciente, del médico solicitante y un resumen conciso de los resultados analizados.
+        Analiza el documento adjunto completo y realiza las siguientes tareas:
+        1. Clasifícalo estrictamente en una de estas categorías: Receta, Informe de Estudio por Imágenes, Orden de Procedimiento, Epicrisis o Certificado Médico.
+        2. Extrae los datos clave del paciente, del médico solicitante y determina el nivel de prioridad (Rutina o Urgente).
 
-        INSTRUCCIONES DE UMBRAL:
+        INSTRUCCIONES DE UMBRAL Y ENRUTAMIENTO:
         - Calcula un score de confianza numérico (entre 0 y 1) para la clasificación.
-        - Si el score es menor a 0.60, marca la acción como "auditoria_humana". Si está entre 0.60 y 0.84, marca "revision_recomendada". Si es mayor o igual a 0.85, marca "automatico".
+        - Si el score es menor a 0.60 o hay ambigüedad crítica, marca "requiere_auditoria_humana": true y enruta a la cola de revisión. Si es mayor o igual, enruta según la urgencia clínica.
 
         DEVUELVE ÚNICAMENTE UN JSON VÁLIDO CON ESTA ESTRUCTURA EXACTA (sin texto adicional ni bloques markdown extra):
         {
+          "status": "procesado",
           "documento_id": "...",
           "clasificacion": {
             "tipo_documento": "...",
-            "score_confianza_clasificacion": 0.00,
-            "accion_sugerida_por_umbral": "..."
+            "especialidad": "...",
+            "nivel_prioridad": "Rutina",
+            "score_confianza_clasificacion": 0.00
           },
-          "extraccion_datos": {
+          "datos_extraidos": {
             "paciente": {
               "nombre": "...",
               "rut": "...",
-              "edad": "..."
+              "edad": 0
             },
-            "medico_solicitante": "...",
-            "resumen_contenido": "Breve descripción general de los estudios o exámenes contenidos en el documento."
+            "medico_solicitante": {
+              "nombre": "...",
+              "matricula": "..."
+            },
+            "estudio_realizado": "...",
+            "diagnostico_principal": "...",
+            "cie10_sugerido": "..."
+          },
+          "decision_enrutamiento": {
+            "destino_principal": "...",
+            "requiere_auditoria_humana": false,
+            "justificacion_enrutamiento": "..."
+          },
+          "almacenamiento_oci": {
+            "bucket": "mediflow-documentos-clinicos",
+            "ruta_objeto": "...",
+            "status_backup": "exito"
           }
         }
+        
         """
 
         print("Enviando archivo y prompt estructurado a Gemini 3.6 Flash...")
