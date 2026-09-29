@@ -94,3 +94,8 @@ El código `clasificador_multimodal_v2.py` está **LISTO para producción**.
 ---
 *Reporte completado por: Vanesa María del Mar González*  
 *Rol: QA Tester – MediFlow*
+
+
+
+
+- https://colab.research.google.com/drive/1JtFIfmW_mn6OulXYjc2zR9NAY6IOPgzH?usp=sharing
