@@ -4,6 +4,7 @@ CREATE TABLE documentos (
     contenido TEXT,
     documento_id VARCHAR(255) UNIQUE,
     especialidad VARCHAR(100),
+    prioridad VARCHAR(50) NOT NULL DEFAULT 'MEDIA',
     fecha_registro      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
     score DECIMAL(5,4),

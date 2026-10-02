@@ -26,6 +26,8 @@ public class DocumentosEntity {
 
     private String especialidad;
 
+    private String prioridad;
+
     @Column(name = "documento_id", length = 255)
     private String documentoId;
 

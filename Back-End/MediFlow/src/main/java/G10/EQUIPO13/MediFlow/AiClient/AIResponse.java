@@ -1,7 +1,5 @@
 package G10.EQUIPO13.MediFlow.AiClient;
 
-import G10.EQUIPO13.MediFlow.Pacientes.Estado;
-
 import java.math.BigDecimal;
 
 public record AIResponse(
@@ -14,9 +12,17 @@ public record AIResponse(
 
         //Paciente
         String nombrePaciente,
-        String Diagnostico,
+        String DiagnosticoPaciente,
         Short edad,
         String rut,
-        Estado estado
+
+        //Estudio
+        String estudioRealizado,
+        String diagnostico,
+        String cie10Sugerido,
+
+        //medico
+        String nombreMedico,
+        String matricula
 ) {
 }

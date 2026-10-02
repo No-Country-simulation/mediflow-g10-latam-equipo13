@@ -1,7 +1,8 @@
-package G10.EQUIPO13.MediFlow.Documentos.controller;
+package G10.EQUIPO13.MediFlow.Documentos.Service;
 
 import G10.EQUIPO13.MediFlow.AiClient.AIResponse;
 import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosEntity;
+import G10.EQUIPO13.MediFlow.Documentos.controller.DocumentosResponse;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
 import org.springframework.stereotype.Component;
 

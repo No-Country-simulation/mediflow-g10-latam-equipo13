@@ -1,4 +1,4 @@
-package G10.EQUIPO13.MediFlow.Pacientes;
+package G10.EQUIPO13.MediFlow.Pacientes.Entity;
 
 
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
@@ -7,8 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -32,7 +30,6 @@ public class PacienteEntity {
     private Short edad;
 
     private String rut;
-
 
     private LocalDateTime fechaRegistro;
 
