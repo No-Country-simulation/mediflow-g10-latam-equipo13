@@ -5,6 +5,8 @@ import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+
 @Component
 public class EstudiosDTOMapper {
 
@@ -15,6 +17,8 @@ public EstudiosEntity toDomain(EstudioRequest estudioRequest, UsuariosEntity med
     estudiosEntity.setDiagnosticoPrincipal(estudioRequest.diagnistico_principal());
     estudiosEntity.setPaciente(paciente);
     estudiosEntity.setMedico(medico);
+
+    estudiosEntity.setFecha(LocalDateTime.now());
 
     return estudiosEntity;
 

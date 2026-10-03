@@ -1,7 +1,7 @@
 CREATE TABLE estudios (
     id BIGINT NOT NULL AUTO_INCREMENT,
     nombre VARCHAR(255),
-    diagnistico_principal VARCHAR(255),
+    diagnostico_principal VARCHAR(255),
     fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     cie10_sugerido VARCHAR(255),
 

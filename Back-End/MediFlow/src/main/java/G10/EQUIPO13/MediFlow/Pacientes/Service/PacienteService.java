@@ -13,6 +13,8 @@ import G10.EQUIPO13.MediFlow.Usuarios.Service.CurrentUserService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 
@@ -38,7 +40,11 @@ public class PacienteService {
                     "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
             );        }
 
-        return mapper.toResponse(pacienteRepository.save(mapper.toDomainFromDTO(pacienteRequest,user)));
+
+        PacienteEntity pacienteEntity =mapper.toDomainFromDTO(pacienteRequest,user);
+        pacienteEntity.setFechaRegistro(LocalDateTime.now());
+
+        return mapper.toResponse(pacienteRepository.save(pacienteEntity));
 
 
     }
@@ -58,6 +64,14 @@ public class PacienteService {
 
         PacienteEntity entity = pacienteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado: " +  pacienteRequest.nombre()));
+
+        entity.setFechaActualizacion(LocalDateTime.now());
+
+        entity.setNombre(pacienteRequest.nombre());
+        entity.setDiagnostico(pacienteRequest.diagnostico());
+        entity.setEdad(pacienteRequest.edad());
+        entity.setRut(pacienteRequest.rut());
+        entity.setEstado(pacienteRequest.estado());
 
         return mapper.toResponse(pacienteRepository.save(entity));
 

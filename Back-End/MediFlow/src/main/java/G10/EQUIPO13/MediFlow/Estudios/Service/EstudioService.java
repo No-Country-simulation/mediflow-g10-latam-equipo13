@@ -3,9 +3,11 @@ package G10.EQUIPO13.MediFlow.Estudios.Service;
 
 import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosEntity;
 import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosRepository;
+import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.AccesoDenegadoException;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.ResourceNotFoundException;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteRepository;
+import G10.EQUIPO13.MediFlow.Usuarios.Entity.Roles;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
 import G10.EQUIPO13.MediFlow.Usuarios.Service.CurrentUserService;
 import jakarta.transaction.Transactional;
@@ -33,6 +35,13 @@ public class EstudioService {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
 
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
+
 
         PacienteEntity paciente = pacienteRepository.findById(request.idPaciente())
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado"));
@@ -47,10 +56,20 @@ public class EstudioService {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
 
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol()==Roles.AUDITOR || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
+
         EstudiosEntity entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Estudio no encontrado"));
 
-        return  mapper.toResponse(repository.save(mapper.toDomain(request,user,entity.getPaciente())));
+        entity.setNombre(request.nombre());
+        entity.setDiagnosticoPrincipal(request.diagnistico_principal());
+
+        return  mapper.toResponse(repository.save(entity));
 
     }
 
@@ -58,6 +77,13 @@ public class EstudioService {
     public  List<EstudioResponse> findall() {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
+
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
 
         return repository.findAll()
                 .stream()
@@ -70,6 +96,13 @@ public class EstudioService {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
 
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
+
         EstudiosEntity entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Estudio no encontrado"));
 
@@ -80,6 +113,13 @@ public class EstudioService {
     public  List<EstudioResponse> findByIdMedico(Long id) {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
+
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
 
         return repository.findAllByMedicoId(id)
                 .stream()
@@ -93,6 +133,13 @@ public class EstudioService {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
 
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
+
         return repository.findAllByMedicoNombre(nombre)
                 .stream()
                 .map(mapper::toResponse)
@@ -105,6 +152,13 @@ public class EstudioService {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
 
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
+
         return repository.findAllByPacienteId(id)
                 .stream()
                 .map(mapper::toResponse)
@@ -114,6 +168,13 @@ public class EstudioService {
     public  List<EstudioResponse> findByNombrePaciente(String nombre) {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
+
+        if(user == null ||  user.getRol() == Roles.NO_ASIGNADO || user.getRol() == null){
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
 
         return repository.findAllByPacienteNombre(nombre)
                 .stream()
@@ -126,8 +187,17 @@ public class EstudioService {
 
         UsuariosEntity user = currentUserService.getCurrentUserId();
 
+        if(user.getRol() == Roles.ADMIN) {
+            repository.deleteById(id);
+        }
+        else{
 
-        repository.deleteById(id);
+            throw new AccesoDenegadoException(
+                    "El rol " + user.getRol() + " no tiene permisos para realizar esta acción"
+            );
+
+        }
+
 
     }
 

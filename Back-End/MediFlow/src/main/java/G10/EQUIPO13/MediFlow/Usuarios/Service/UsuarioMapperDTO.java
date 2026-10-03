@@ -15,6 +15,7 @@ public class UsuarioMapperDTO {
         entity.setNombre(request.name());
         entity.setPassword(request.password());
         entity.setRol(Roles.NO_ASIGNADO);
+        entity.setActivo(true);
 
         return entity;
     }
