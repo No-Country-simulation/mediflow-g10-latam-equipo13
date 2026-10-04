@@ -104,7 +104,17 @@ def adaptar_resultado(resultado, nombre_archivo):
             edad = None
 
     # -----------------------------------------
-    # 6. Resultado estándar de MediFlow
+    # 6. Contenido extraído del documento
+    # -----------------------------------------
+
+    contenido = (
+        resultado.get("contenido")
+        or resultado.get("texto")
+        or resultado.get("texto_extraido")
+    )
+
+    # -----------------------------------------
+    # 7. Resultado estándar de MediFlow
     # -----------------------------------------
 
     return {
@@ -112,44 +122,51 @@ def adaptar_resultado(resultado, nombre_archivo):
 
         "documento_id": nombre_archivo,
 
+        "contenido": contenido,
+
         "clasificacion": {
-            "tipo_documento": tipo_documento,
+            "tipo_documento": tipo_documento or "SIN CLASIFICAR",
 
-            "especialidad": medico.get(
-                "especialidad"
+            "especialidad": (
+                medico.get("especialidad")
+                or "SIN ESPECIALIDAD"
             ),
 
-            "nivel_prioridad": resultado.get(
-                "prioridad"
+            "nivel_prioridad": (
+                resultado.get("prioridad")
+                or "SIN PRIORIDAD"
             ),
 
-            "score_confianza_clasificacion": score_confianza
+            "score_confianza_clasificacion": (
+                score_confianza if score_confianza is not None else 0.0
+            )
         },
 
         "datos_extraidos": {
 
             "paciente": {
-                "nombre": paciente.get(
-                    "nombre_completo",
-                    paciente.get("nombre")
+                "nombre": (
+                    paciente.get("nombre_completo")
+                    or paciente.get("nombre")
+                    or "SIN NOMBRE"
                 ),
 
-                "rut": paciente.get(
-                    "rut"
-                ),
+                "rut": paciente.get("rut") or "SIN RUT",
 
                 "edad": edad
             },
 
             "medico_solicitante": {
-                "nombre": medico.get(
-                    "nombre_completo",
-                    medico.get("nombre")
+                "nombre": (
+                    medico.get("nombre_completo")
+                    or medico.get("nombre")
+                    or "SIN NOMBRE"
                 ),
 
-                "matricula": medico.get(
-                    "matricula",
-                    medico.get("rut")
+                "matricula": (
+                    medico.get("matricula")
+                    or medico.get("rut")
+                    or "SIN MATRICULA"
                 )
             },
 

@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 public record EstudioResponse(
         Long id,
         String nombre,
-        String diagnistico_principal,
+        String diagnosticoPrincipal,
         LocalDateTime fecha,
         String cie10_sugerido,
         String nombreMedico,

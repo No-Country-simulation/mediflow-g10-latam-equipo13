@@ -2,9 +2,13 @@ package G10.EQUIPO13.MediFlow.Usuarios.Controller;
 
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.Roles;
 import G10.EQUIPO13.MediFlow.Usuarios.Service.UsuariosService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,23 +16,25 @@ import java.util.List;
 @AllArgsConstructor
 @RestController
 @RequestMapping("/api/user")
+@Validated
 public class UsuariosController {
 
     private final UsuariosService service;
 
     @PostMapping("/register")
-    public ResponseEntity<UsuarioResponse> register(@RequestBody UsuarioRegister reg){
+    public ResponseEntity<UsuarioResponse> register(@RequestBody @Valid UsuarioRegister reg){
 
         return service.register(reg);
 
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/{id}/rol/{rol}")
-    public ResponseEntity<UsuarioResponse> rolechange(@PathVariable("id") Long id, @PathVariable("rol") Roles rol){
+    @PatchMapping("/{id}/rol/{rol}")
+    public ResponseEntity<UsuarioResponse> changeRole(
+            @PathVariable @Min(1) Long id,
+            @PathVariable Roles rol) {
 
-        return service.roleChange(id,rol);
-
+        return service.roleChange(id, rol);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -48,20 +54,20 @@ public class UsuariosController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/findbyId/{id}")
-    public ResponseEntity<UsuarioResponse> findById(@PathVariable Long id){
+    public ResponseEntity<UsuarioResponse> findById(@PathVariable @Min(1) Long id){
         return ResponseEntity.ok(service.findById(id));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/findbyname/{name}")
-    public ResponseEntity<UsuarioResponse> findByName(@PathVariable String name){
+    public ResponseEntity<UsuarioResponse> findByName(@PathVariable @NotBlank String name){
         return ResponseEntity.ok(service.findByName(name));
     }
 
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id){
+    public ResponseEntity<Void> delete(@PathVariable @Min(1) Long id){
 
         service.deleteById(id);
 

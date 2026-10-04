@@ -2,6 +2,7 @@ package G10.EQUIPO13.MediFlow.Security.auth;
 
 import G10.EQUIPO13.MediFlow.Security.config.CustomUserDetailsService;
 import G10.EQUIPO13.MediFlow.Security.jwt.JWTService;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,7 +22,7 @@ public class AuthController {
     private final CustomUserDetailsService userDetailsService;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
 
         // 1. Autenticar
         authenticationManager.authenticate(

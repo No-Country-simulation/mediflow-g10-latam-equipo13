@@ -14,7 +14,7 @@ public EstudiosEntity toDomain(EstudioRequest estudioRequest, UsuariosEntity med
 
     EstudiosEntity estudiosEntity = new EstudiosEntity();
     estudiosEntity.setNombre(estudioRequest.nombre());
-    estudiosEntity.setDiagnosticoPrincipal(estudioRequest.diagnistico_principal());
+    estudiosEntity.setDiagnosticoPrincipal(estudioRequest.diagnosticoPrincipal());
     estudiosEntity.setPaciente(paciente);
     estudiosEntity.setMedico(medico);
 

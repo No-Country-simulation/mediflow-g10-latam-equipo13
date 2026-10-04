@@ -67,7 +67,7 @@ public class EstudioService {
                 .orElseThrow(() -> new ResourceNotFoundException("Estudio no encontrado"));
 
         entity.setNombre(request.nombre());
-        entity.setDiagnosticoPrincipal(request.diagnistico_principal());
+        entity.setDiagnosticoPrincipal(request.diagnosticoPrincipal());
 
         return  mapper.toResponse(repository.save(entity));
 

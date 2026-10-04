@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 import shutil
 import tempfile
@@ -5,8 +8,11 @@ import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
+
 from clasificador.clasificador_multimodal import clasificar_documento
 from clasificador.adaptador import adaptar_resultado
+
+from fastapi import Request
 
 
 app = FastAPI(
@@ -50,6 +56,7 @@ class DatosExtraidos(BaseModel):
 class ResultadoTriaje(BaseModel):
     status: str
     documento_id: str
+    contenido: str | None = None
     clasificacion: Clasificacion
     datos_extraidos: DatosExtraidos
 
@@ -64,6 +71,8 @@ def resultado_prueba():
         "status": "procesado",
 
         "documento_id": "102820976",
+
+        "contenido":"texto extraido ....",
 
         "clasificacion": {
             "tipo_documento": "Orden de Procedimiento",
@@ -99,7 +108,8 @@ def resultado_prueba():
 async def analizar_documento(
     archivo: UploadFile = File(...)
 ):
-
+    print(f">>> Archivo recibido: {archivo.filename}")
+    print(f">>> Content type: {archivo.content_type}")
     archivo_temporal = None
 
     try:

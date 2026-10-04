@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 public record ResultadoTriaje(
         String status,
         @JsonProperty("documento_id") String documentoId,
+        String contenido,
         Clasificacion clasificacion,
         @JsonProperty("datos_extraidos") DatosExtraidos datosExtraidos
 ) {}

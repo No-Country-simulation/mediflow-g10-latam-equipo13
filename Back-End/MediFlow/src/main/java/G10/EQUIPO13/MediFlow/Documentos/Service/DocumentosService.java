@@ -17,9 +17,12 @@ import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
 import G10.EQUIPO13.MediFlow.Usuarios.Service.CurrentUserService;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 
 @AllArgsConstructor
@@ -66,6 +69,25 @@ public class DocumentosService {
         PacienteEntity pacienteSaved = pacienteRepository.save(paciente);
 
         return mapper.toResponse(documentoSaved);
+
+    }
+
+    @Transactional
+    public DocumentosResponse analizeFile(MultipartFile archivo){
+
+        // TODO: llamar a Python cuando el cliente esté listo
+
+        // try {
+        //     byte[] contenido = archivo.getBytes();
+        //     ResultadoPython resultado = pythonClient.analizar(contenido);
+        //     return new DocumentosResponse(...);
+        // } catch (IOException e) {
+        //     throw new UncheckedIOException("Error al procesar el archivo", e);
+        // }
+
+        throw new UnsupportedOperationException("analizeFile aún no implementado");
+
+
 
     }
 

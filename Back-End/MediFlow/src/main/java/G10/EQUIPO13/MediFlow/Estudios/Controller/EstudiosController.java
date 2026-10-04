@@ -4,9 +4,14 @@ package G10.EQUIPO13.MediFlow.Estudios.Controller;
 import G10.EQUIPO13.MediFlow.Estudios.Service.EstudioRequest;
 import G10.EQUIPO13.MediFlow.Estudios.Service.EstudioResponse;
 import G10.EQUIPO13.MediFlow.Estudios.Service.EstudioService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,13 +19,14 @@ import java.util.List;
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/estudios")
+@Validated
 public class EstudiosController {
 
     private final EstudioService service;
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL')")
     @PostMapping("/create")
-    public ResponseEntity<EstudioResponse> create(@RequestBody EstudioRequest request){
+    public ResponseEntity<EstudioResponse> create(@RequestBody @Valid EstudioRequest request){
 
         return ResponseEntity.ok(service.create(request));
 
@@ -28,7 +34,7 @@ public class EstudiosController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @PostMapping("/update/{id}")
-    public ResponseEntity<EstudioResponse> update(@RequestBody EstudioRequest request, @PathVariable Long id){
+    public ResponseEntity<EstudioResponse> update(@RequestBody @Valid EstudioRequest request, @PathVariable @Min(1) Long id){
 
         return ResponseEntity.ok(service.update(request, id));
     }
@@ -41,14 +47,14 @@ public class EstudiosController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @GetMapping("/findbyid/{id}")
-    public ResponseEntity<EstudioResponse> findById(@PathVariable Long id){
+    public ResponseEntity<EstudioResponse> findById(@PathVariable @Min(1) Long id){
 
         return ResponseEntity.ok(service.FindById(id));
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @GetMapping("/findallbymedicoid/{id}")
-    public ResponseEntity<List<EstudioResponse>> findByIdMedico(@PathVariable Long id){
+    public ResponseEntity<List<EstudioResponse>> findByIdMedico(@PathVariable @Min(1) Long id){
 
         return ResponseEntity.ok(service.findByIdMedico(id));
 
@@ -56,7 +62,7 @@ public class EstudiosController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @GetMapping("/findallbynombremedico/{nombre}")
-    public ResponseEntity<List<EstudioResponse>> findByNombreMedico(@PathVariable String nombre){
+    public ResponseEntity<List<EstudioResponse>> findByNombreMedico(@PathVariable @NotBlank String nombre){
 
         return ResponseEntity.ok(service.findByNombreMedico(nombre));
     }
@@ -64,21 +70,21 @@ public class EstudiosController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @GetMapping("/findallbypacienteid/{id}")
-    public ResponseEntity<List<EstudioResponse>> findByIdPaciente(@PathVariable Long id){
+    public ResponseEntity<List<EstudioResponse>> findByIdPaciente(@PathVariable @Min(1) Long id){
         return ResponseEntity.ok(service.findByIdPaciente(id));
     }
 
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @GetMapping("/findallbynombrepaciente/{nombre}")
-    public ResponseEntity<List<EstudioResponse>> findByNombrePaciente(@PathVariable String nombre){
+    public ResponseEntity<List<EstudioResponse>> findByNombrePaciente(@PathVariable @NotBlank String nombre){
 
         return ResponseEntity.ok(service.findByNombrePaciente(nombre));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id){
+    public ResponseEntity<Void> delete(@PathVariable @Min(1) Long id){
 
                 service.Delete(id);
 
