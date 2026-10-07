@@ -24,6 +24,7 @@ public class DocumentosDTOMapper {
                 response.setUsuario(usuariosEntity);
                 response.setFechaRegistro(LocalDateTime.now());
                 response.setFechaActualizacion(LocalDateTime.now());
+                response.setPrioridad(aiResponse.prioridad());
 
         return response;
 

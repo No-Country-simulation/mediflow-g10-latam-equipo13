@@ -40,52 +40,84 @@ def clasificar_documento(ruta_archivo):
 
             # Prompt de clasificación y extracción
             prompt_multimodal = """
-            Actúa como el motor de clasificación y extracción inteligente
-            de documentos clínicos para el proyecto MediFlow.
+Actúa como el motor de clasificación y extracción inteligente
+de documentos clínicos para el proyecto MediFlow.
 
-            Analiza el documento adjunto completo.
+Analiza el documento adjunto completo.
 
-            1. Clasifícalo estrictamente en una de estas categorías:
-               Receta, Informe de Estudio por Imágenes,
-               Orden de Procedimiento, Epicrisis o Certificado Médico.
+1. Clasifícalo estrictamente en una de estas categorías:
+   Receta, Informe de Estudio por Imágenes,
+   Orden de Procedimiento, Epicrisis o Certificado Médico.
 
-            2. Extrae los datos clave del paciente y del médico solicitante.
+2. Extrae los datos clave del paciente y del médico solicitante.
 
-            3. Determina el nivel de prioridad:
-               - Rutina
-               - Urgente
+3. Determina el nivel de prioridad:
+   - Rutina
+   - Urgente
 
-            4. Extrae, cuando estén disponibles, los siguientes datos
-               clínicos adicionales:
+4. Extrae, cuando estén disponibles, los siguientes datos
+   clínicos adicionales:
 
-               - estudio_realizado
-               - diagnostico_principal
-               - cie10_sugerido
+   - estudio_realizado
+   - diagnostico_principal
+   - cie10_sugerido
 
-            REGLAS IMPORTANTES:
+5. Extrae también el contenido textual del documento.
 
-            - No inventes información.
-            - Si un dato no aparece claramente en el documento,
-              devuelve null para ese campo.
-            - La edad del paciente debe devolverse como un número entero,
-              sin unidades como "años".
-            - El score de confianza debe ser un número entre 0 y 1.
+   El campo "contenido" debe contener el texto que puedas
+   leer directamente del documento, conservando la información
+   relevante del documento.
 
-            INSTRUCCIONES DE UMBRAL Y ENRUTAMIENTO:
+   No inventes ni completes información que no sea visible.
+   Si no puedes extraer texto legible, devuelve null.
 
-            - Si el score de confianza es menor a 0.60 o existe
-              ambigüedad crítica, marca:
-              "requiere_auditoria_humana": true
+REGLAS IMPORTANTES:
 
-            - Si el score es menor a 0.60 o existe ambigüedad crítica,
-              la cola de enrutamiento debe ser la cola de revisión.
+- No inventes información.
+- Si un dato no aparece claramente en el documento,
+  devuelve null para ese campo.
+- La edad del paciente debe devolverse como un número entero,
+  sin unidades como "años".
+- El score de confianza debe ser un número entre 0 y 1.
+- El campo "contenido" debe contener únicamente información
+  obtenida del documento.
 
-            - Si el score es mayor o igual a 0.60,
-              enruta según la prioridad clínica.
+INSTRUCCIONES DE UMBRAL Y ENRUTAMIENTO:
 
-            DEVUELVE ÚNICAMENTE UN JSON VÁLIDO.
-            """
+- Si el score de confianza es menor a 0.60 o existe
+  ambigüedad crítica, marca:
+  "requiere_auditoria_humana": true
 
+- Si el score es menor a 0.60 o existe ambigüedad crítica,
+  la cola de enrutamiento debe ser la cola de revisión.
+
+- Si el score es mayor o igual a 0.60,
+  enruta según la prioridad clínica.
+
+DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
+
+{
+    "contenido": "texto extraído del documento",
+    "tipo_documento": "Receta",
+    "paciente": {
+        "nombre": null,
+        "rut": null,
+        "edad": null
+    },
+    "medico": {
+        "nombre": null,
+        "rut": null,
+        "especialidad": null
+    },
+    "prioridad": "Rutina",
+    "estudio_realizado": null,
+    "diagnostico_principal": null,
+    "cie10_sugerido": null,
+    "score_confianza": 0.0,
+    "requiere_auditoria_humana": false,
+    "cola_enrutamiento": "Rutina"
+}
+"""
             # Enviar documento + instrucciones a Gemini
             response = client.models.generate_content(
                 model="gemini-3.7-flash",

@@ -9,7 +9,8 @@ public record ResultadoTriaje(
         @JsonProperty("documento_id") String documentoId,
         String contenido,
         Clasificacion clasificacion,
-        @JsonProperty("datos_extraidos") DatosExtraidos datosExtraidos
+        @JsonProperty("datos_extraidos") DatosExtraidos datosExtraidos,
+        String prioridad
 ) {}
 
  record Clasificacion(
