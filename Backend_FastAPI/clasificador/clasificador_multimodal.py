@@ -1,3 +1,4 @@
+
 import os
 import json
 import time
@@ -24,7 +25,6 @@ def clasificar_documento(ruta_archivo):
     tiempo_espera = 4
 
     for intento in range(1, max_intentos + 1):
-
         try:
             print(
                 f"\n[Intento {intento} de {max_intentos}] "
@@ -91,8 +91,8 @@ INSTRUCCIONES DE UMBRAL Y ENRUTAMIENTO:
 - Si el score es menor a 0.60 o existe ambigüedad crítica,
   la cola de enrutamiento debe ser la cola de revisión.
 
-- Si el score es mayor o igual a 0.60,
-  enruta según la prioridad clínica.
+- Si el score es mayor o igual a 0.60 y no existe
+  ambigüedad crítica, enruta según la prioridad clínica.
 
 DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
 
@@ -118,7 +118,8 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
     "cola_enrutamiento": "Rutina"
 }
 """
-            # Enviar documento + instrucciones a Gemini
+
+            # Enviar documento e instrucciones a Gemini
             response = client.models.generate_content(
                 model="gemini-3.7-flash",
                 contents=[
@@ -150,7 +151,6 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
             return resultado_json
 
         except Exception as e:
-
             error_str = str(e)
 
             print(
@@ -160,9 +160,7 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
 
             # Comprobar si es un error temporal de Gemini
             if "503" in error_str or "UNAVAILABLE" in error_str:
-
                 if intento < max_intentos:
-
                     print(
                         f"Servidores ocupados. "
                         f"Esperando {tiempo_espera} segundos "
@@ -170,26 +168,19 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
                     )
 
                     time.sleep(tiempo_espera)
-
                 else:
-
                     print(
                         "\nSe agotaron los reintentos "
                         "por saturación del servidor."
                     )
-
             else:
-
                 print(
                     "\nSe encontró un error diferente "
                     "al de saturación. "
                     "Deteniendo ejecución."
                 )
-
                 break
 
-    print(
-        "\nEl proceso no pudo completarse."
-    )
+    print("\nEl proceso no pudo completarse.")
 
     return None
