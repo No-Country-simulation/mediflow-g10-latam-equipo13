@@ -42,6 +42,8 @@ class Clasificacion(BaseModel):
     especialidad: str
     nivel_prioridad: str
     score_confianza_clasificacion: float
+    requiere_auditoria_humana: bool = False
+    cola_enrutamiento: str = "SIN DEFINIR"
 
 
 class DatosExtraidos(BaseModel):
@@ -78,7 +80,9 @@ def resultado_prueba():
             "tipo_documento": "Orden de Procedimiento",
             "especialidad": "Laboratorio Clínico",
             "nivel_prioridad": "Rutina",
-            "score_confianza_clasificacion": 0.55
+            "score_confianza_clasificacion": 0.55,
+            "requiere_auditoria_humana": True,
+            "cola_enrutamiento": "Revision"
         },
 
         "datos_extraidos": {

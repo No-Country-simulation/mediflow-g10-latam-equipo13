@@ -1,95 +1,108 @@
+
 def adaptar_resultado(resultado, nombre_archivo):
     """
-    Convierte diferentes estructuras de respuesta de Gemini
-    al formato estándar que espera el backend de MediFlow.
+    Convierte la respuesta del clasificador al formato
+    estándar que espera el backend de MediFlow.
     """
 
     # -----------------------------------------
-    # 1. Datos del paciente
+    # 1. Validar resultado del clasificador
     # -----------------------------------------
 
-    datos_extraidos = resultado.get(
-        "datos_extraidos",
-        {}
-    )
+    if not isinstance(resultado, dict):
+        raise ValueError(
+            "El resultado del clasificador debe ser un diccionario."
+        )
 
-    paciente = datos_extraidos.get(
-        "paciente"
-    )
+    # -----------------------------------------
+    # 2. Datos del paciente
+    # -----------------------------------------
+
+    datos_extraidos = resultado.get("datos_extraidos") or {}
+
+    paciente = datos_extraidos.get("paciente")
 
     if paciente is None:
-        paciente = resultado.get(
-            "datos_paciente",
-            {}
-        )
+        paciente = resultado.get("datos_paciente") or {}
 
     if not paciente:
-        paciente = resultado.get(
-            "paciente",
-            {}
-        )
+        paciente = resultado.get("paciente") or {}
 
     # -----------------------------------------
-    # 2. Datos del médico
+    # 3. Datos del médico
     # -----------------------------------------
 
-    medico = datos_extraidos.get(
-        "medico"
-    )
+    medico = datos_extraidos.get("medico")
 
     if medico is None:
-        medico = resultado.get(
-            "datos_medico",
-            {}
-        )
+        medico = resultado.get("datos_medico") or {}
 
     if not medico:
-        medico = resultado.get(
-            "medico",
-            {}
-        )
+        medico = resultado.get("medico") or {}
+
+    # Evitar errores si los datos vienen nulos
+    if not isinstance(paciente, dict):
+        paciente = {}
+
+    if not isinstance(medico, dict):
+        medico = {}
 
     # -----------------------------------------
-    # 3. Tipo de documento
+    # 4. Tipo de documento
     # -----------------------------------------
 
-    tipo_documento = resultado.get(
-        "tipo_documento"
-    )
+    tipo_documento = resultado.get("tipo_documento")
 
     if tipo_documento is None:
-        tipo_documento = resultado.get(
-            "clasificacion"
-        )
+        tipo_documento = resultado.get("clasificacion")
 
     if tipo_documento is None:
-        tipo_documento = resultado.get(
-            "categoria"
-        )
+        tipo_documento = resultado.get("categoria")
 
     # -----------------------------------------
-    # 4. Confianza
+    # 5. Confianza
     # -----------------------------------------
 
-    score_confianza = resultado.get(
-        "confianza_clasificacion"
-    )
+    score_confianza = resultado.get("confianza_clasificacion")
 
     if score_confianza is None:
-        score_confianza = resultado.get(
-            "score_confianza"
+        score_confianza = resultado.get("score_confianza")
+
+    if score_confianza is None:
+        score_confianza = 0.0
+
+    # -----------------------------------------
+    # 6. Auditoría humana y enrutamiento
+    # -----------------------------------------
+
+    if "requiere_auditoria_humana" not in resultado:
+        raise ValueError(
+            "El clasificador no devolvió el campo "
+            "'requiere_auditoria_humana'."
+        )
+
+    requiere_auditoria = resultado["requiere_auditoria_humana"]
+
+    if not isinstance(requiere_auditoria, bool):
+        raise ValueError(
+            "El campo 'requiere_auditoria_humana' "
+            "debe ser un booleano."
+        )
+
+    cola_enrutamiento = resultado.get("cola_enrutamiento")
+
+    if not isinstance(cola_enrutamiento, str) or not cola_enrutamiento.strip():
+        raise ValueError(
+            "El clasificador no devolvió una cola de enrutamiento válida."
         )
 
     # -----------------------------------------
-    # 5. Normalizar edad
+    # 7. Normalizar edad
     # -----------------------------------------
 
-    edad = paciente.get(
-        "edad"
-    )
+    edad = paciente.get("edad")
 
     if isinstance(edad, str):
-
         edad = (
             edad
             .replace("años", "")
@@ -99,12 +112,11 @@ def adaptar_resultado(resultado, nombre_archivo):
 
         try:
             edad = int(edad)
-
         except ValueError:
             edad = None
 
     # -----------------------------------------
-    # 6. Contenido extraído del documento
+    # 8. Contenido extraído
     # -----------------------------------------
 
     contenido = (
@@ -114,14 +126,12 @@ def adaptar_resultado(resultado, nombre_archivo):
     )
 
     # -----------------------------------------
-    # 7. Resultado estándar de MediFlow
+    # 9. Resultado estándar de MediFlow
     # -----------------------------------------
 
     return {
         "status": "procesado",
-
         "documento_id": nombre_archivo,
-
         "contenido": contenido,
 
         "clasificacion": {
@@ -137,13 +147,14 @@ def adaptar_resultado(resultado, nombre_archivo):
                 or "SIN PRIORIDAD"
             ),
 
-            "score_confianza_clasificacion": (
-                score_confianza if score_confianza is not None else 0.0
-            )
+            "score_confianza_clasificacion": score_confianza,
+
+            "requiere_auditoria_humana": requiere_auditoria,
+
+            "cola_enrutamiento": cola_enrutamiento
         },
 
         "datos_extraidos": {
-
             "paciente": {
                 "nombre": (
                     paciente.get("nombre_completo")
@@ -152,7 +163,6 @@ def adaptar_resultado(resultado, nombre_archivo):
                 ),
 
                 "rut": paciente.get("rut") or "SIN RUT",
-
                 "edad": edad
             },
 
