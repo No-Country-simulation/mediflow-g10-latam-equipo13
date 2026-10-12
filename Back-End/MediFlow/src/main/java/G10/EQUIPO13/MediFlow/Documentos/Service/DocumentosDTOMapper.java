@@ -2,7 +2,6 @@ package G10.EQUIPO13.MediFlow.Documentos.Service;
 
 import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
 import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosEntity;
-import G10.EQUIPO13.MediFlow.Documentos.controller.DocumentosResponse;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +11,10 @@ import java.time.LocalDateTime;
 @Component
 public class DocumentosDTOMapper {
 
-    public DocumentosEntity toEntityFromAI(ResultadoTriaje resultado, UsuariosEntity usuariosEntity){
+    public DocumentosEntity toEntityFromAI(
+            ResultadoTriaje resultado,
+            UsuariosEntity usuariosEntity
+    ) {
         return DocumentosEntity.builder()
                 .status(resultado.status())
                 .tipo(resultado.clasificacion().tipoDocumento())
@@ -20,11 +22,14 @@ public class DocumentosDTOMapper {
                 .especialidad(resultado.clasificacion().especialidad())
                 .prioridad(resultado.clasificacion().nivelPrioridad())
                 .documentoId(resultado.documentoId())
-                .score(resultado.clasificacion().scoreConfianzaClasificacion() != null
-                        ? BigDecimal.valueOf(
-                        resultado.clasificacion().scoreConfianzaClasificacion()
+                .score(
+                        resultado.clasificacion().scoreConfianzaClasificacion() != null
+                                ? BigDecimal.valueOf(
+                                        resultado.clasificacion()
+                                                .scoreConfianzaClasificacion()
+                                )
+                                : null
                 )
-                        : null)
                 .requiereAuditoria(
                         resultado.clasificacion().auditoria()
                 )
@@ -37,22 +42,9 @@ public class DocumentosDTOMapper {
                 .build();
     }
 
-    public DocumentosResponse toResponse(DocumentosEntity documentosEntity){
-
-        String nombre = documentosEntity.getUsuario().getNombre();
-
-        return new DocumentosResponse(
-                documentosEntity.getId(),
-                documentosEntity.getTipo(),
-                documentosEntity.getContenido(),
-                documentosEntity.getEspecialidad(),
-                documentosEntity.getDocumentoId(),
-                documentosEntity.getFechaRegistro(),
-                documentosEntity.getFechaActualizacion(),
-                documentosEntity.getScore(),
-                nombre
-        );
-
+    public DocumentosEntity toResponse(
+            DocumentosEntity documentosEntity
+    ) {
+        return documentosEntity;
     }
-
 }

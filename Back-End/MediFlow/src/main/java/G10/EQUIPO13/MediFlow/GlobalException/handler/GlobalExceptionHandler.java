@@ -1,8 +1,10 @@
-package G10.EQUIPO13.MediFlow.GlobalException.handler;
 
+package G10.EQUIPO13.MediFlow.GlobalException.handler;
 
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.*;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,14 +17,23 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     // ============================
     // 404 - Recurso no encontrado
     // ============================
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(
-            ResourceNotFoundException ex, HttpServletRequest request) {
+            ResourceNotFoundException ex,
+            HttpServletRequest request) {
 
-        return build(HttpStatus.NOT_FOUND, ex.getCodigo(), ex.getMessage(), request);
+        return build(
+                HttpStatus.NOT_FOUND,
+                ex.getCodigo(),
+                ex.getMessage(),
+                request
+        );
     }
 
     // ============================
@@ -30,9 +41,15 @@ public class GlobalExceptionHandler {
     // ============================
     @ExceptionHandler(AccesoDenegadoException.class)
     public ResponseEntity<ErrorResponse> handleAccesoDenegado(
-            AccesoDenegadoException ex, HttpServletRequest request) {
+            AccesoDenegadoException ex,
+            HttpServletRequest request) {
 
-        return build(HttpStatus.FORBIDDEN, ex.getCodigo(), ex.getMessage(), request);
+        return build(
+                HttpStatus.FORBIDDEN,
+                ex.getCodigo(),
+                ex.getMessage(),
+                request
+        );
     }
 
     // ============================
@@ -40,10 +57,15 @@ public class GlobalExceptionHandler {
     // ============================
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleSpringAccessDenied(
-            AccessDeniedException ex, HttpServletRequest request) {
+            AccessDeniedException ex,
+            HttpServletRequest request) {
 
-        return build(HttpStatus.FORBIDDEN, "FORBIDDEN",
-                "No tienes permisos para acceder a este recurso", request);
+        return build(
+                HttpStatus.FORBIDDEN,
+                "FORBIDDEN",
+                "No tienes permisos para acceder a este recurso",
+                request
+        );
     }
 
     // ============================
@@ -51,9 +73,15 @@ public class GlobalExceptionHandler {
     // ============================
     @ExceptionHandler(ReglaNegocioException.class)
     public ResponseEntity<ErrorResponse> handleReglaNegocio(
-            ReglaNegocioException ex, HttpServletRequest request) {
+            ReglaNegocioException ex,
+            HttpServletRequest request) {
 
-        return build(HttpStatus.BAD_REQUEST, ex.getCodigo(), ex.getMessage(), request);
+        return build(
+                HttpStatus.BAD_REQUEST,
+                ex.getCodigo(),
+                ex.getMessage(),
+                request
+        );
     }
 
     // ============================
@@ -61,9 +89,15 @@ public class GlobalExceptionHandler {
     // ============================
     @ExceptionHandler(ConflictoException.class)
     public ResponseEntity<ErrorResponse> handleConflicto(
-            ConflictoException ex, HttpServletRequest request) {
+            ConflictoException ex,
+            HttpServletRequest request) {
 
-        return build(HttpStatus.CONFLICT, ex.getCodigo(), ex.getMessage(), request);
+        return build(
+                HttpStatus.CONFLICT,
+                ex.getCodigo(),
+                ex.getMessage(),
+                request
+        );
     }
 
     // ============================
@@ -71,12 +105,14 @@ public class GlobalExceptionHandler {
     // ============================
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidacion(
-            MethodArgumentNotValidException ex, HttpServletRequest request) {
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
 
         List<String> detalles = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+                .map(err ->
+                        err.getField() + ": " + err.getDefaultMessage())
                 .toList();
 
         ErrorResponse body = new ErrorResponse(
@@ -91,24 +127,57 @@ public class GlobalExceptionHandler {
     }
 
     // ============================
+    // 502 - Error del servicio de IA
+    // ============================
+    @ExceptionHandler(AIClientException.class)
+    public ResponseEntity<ErrorResponse> handleAIClient(
+            AIClientException ex,
+            HttpServletRequest request) {
+
+        log.error(
+                "Error al comunicarse con el servicio de IA en la ruta {}",
+                request.getRequestURI(),
+                ex
+        );
+
+        return build(
+                HttpStatus.BAD_GATEWAY,
+                "AI_SERVICE_ERROR",
+                "No fue posible completar el análisis del documento. Inténtalo más tarde.",
+                request
+        );
+    }
+
+    // ============================
     // 500 - Cualquier otra excepción
     // ============================
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(
-            Exception ex, HttpServletRequest request) {
+            Exception ex,
+            HttpServletRequest request) {
 
-        // ⚠️ Aquí SÍ conviene loguear el stacktrace
-        // log.error("Error inesperado", ex);
+        log.error(
+                "Error inesperado en la ruta {}",
+                request.getRequestURI(),
+                ex
+        );
 
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
-                "Ocurrió un error inesperado. Contacta al administrador.", request);
+        return build(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_ERROR",
+                "Ocurrió un error inesperado. Contacta al administrador.",
+                request
+        );
     }
 
     // ============================
     // Helper para construir la respuesta
     // ============================
     private ResponseEntity<ErrorResponse> build(
-            HttpStatus status, String codigo, String mensaje, HttpServletRequest request) {
+            HttpStatus status,
+            String codigo,
+            String mensaje,
+            HttpServletRequest request) {
 
         ErrorResponse body = new ErrorResponse(
                 codigo,
@@ -119,5 +188,4 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(status).body(body);
     }
-
 }
