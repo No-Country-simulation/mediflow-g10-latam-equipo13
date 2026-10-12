@@ -1,7 +1,6 @@
 package G10.EQUIPO13.MediFlow.AiClient;
 
 import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
-import G10.EQUIPO13.MediFlow.AiClient.Temporal.AIResponseMapper;
 import org.springframework.http.client.MultipartBodyBuilder;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.AIClientException;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,15 +12,13 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class AIClient {
 
-    private final AIResponseMapper aiResponseMapper;
     private final RestClient restClient;
 
     public AIClient(
-            AIResponseMapper aiResponseMapper,
+
             RestClient.Builder builder,
             @Value("${PYTHON_URL}") String baseUrl
     ) {
-        this.aiResponseMapper = aiResponseMapper;
 
         this.restClient = builder
                 .baseUrl(baseUrl)

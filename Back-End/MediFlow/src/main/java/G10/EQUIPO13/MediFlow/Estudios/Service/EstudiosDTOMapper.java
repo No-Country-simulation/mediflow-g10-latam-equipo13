@@ -43,6 +43,13 @@ public EstudioResponse toResponse(EstudiosEntity entity){
 
     public EstudiosEntity toDomainFromAI(ResultadoTriaje resultadoTriaje, UsuariosEntity medico, PacienteEntity paciente){
 
+
+        if (resultadoTriaje.datosExtraidos().estudioRealizado() == null) {
+
+        return null;
+
+        }
+
         EstudiosEntity estudiosEntity = new EstudiosEntity();
         estudiosEntity.setNombre(resultadoTriaje.datosExtraidos().estudioRealizado());
         estudiosEntity.setDiagnosticoPrincipal(resultadoTriaje.datosExtraidos().diagnosticoPrincipal());

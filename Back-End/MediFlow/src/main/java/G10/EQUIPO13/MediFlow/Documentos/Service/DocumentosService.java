@@ -103,8 +103,10 @@ public class DocumentosService {
         EstudiosEntity estudio =
                 estudiosMapper.toDomainFromAI(resultado, user, paciente);
 
-        estudiosRepository.save(estudio);
-
+        //verifica que el mapper no devuelva null
+        if (estudio != null) {
+            estudiosRepository.save(estudio);
+        }
         return mapper.toResponse(documentoSaved);
 
     }
