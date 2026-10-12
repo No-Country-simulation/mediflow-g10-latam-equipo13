@@ -43,13 +43,17 @@ public class DocumentosDTOMapper {
 
         return new DocumentosResponse(
                 documentosEntity.getId(),
+                documentosEntity.getStatus(),
                 documentosEntity.getTipo(),
                 documentosEntity.getContenido(),
                 documentosEntity.getEspecialidad(),
+                documentosEntity.getPrioridad(),
                 documentosEntity.getDocumentoId(),
                 documentosEntity.getFechaRegistro(),
                 documentosEntity.getFechaActualizacion(),
                 documentosEntity.getScore(),
+                documentosEntity.getRequiereAuditoria(),
+                documentosEntity.getColaEnrutamiento(),
                 nombre
         );
 
