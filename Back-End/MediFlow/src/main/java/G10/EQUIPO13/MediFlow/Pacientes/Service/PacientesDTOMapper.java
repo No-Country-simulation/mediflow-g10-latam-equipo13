@@ -2,7 +2,6 @@ package G10.EQUIPO13.MediFlow.Pacientes.Service;
 
 import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.Estado;
-import G10.EQUIPO13.MediFlow.AiClient.Temporal.AIResponse;
 import G10.EQUIPO13.MediFlow.Pacientes.Controller.PacienteRequest;
 import G10.EQUIPO13.MediFlow.Pacientes.Controller.PacienteResponse;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
