@@ -2133,3 +2133,68 @@ if __name__ == "__main__":
         logger.info("Clasificación completada exitosamente")
     else:
         logger.error(" No se pudo clasificar el documento")
+
+
+
+
+#### CÓDIGO CORREGIDO-JAVA:
+```java
+@PostMapping("/login")
+public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+    
+    // VALIDACIÓN 1: Request no es null
+    if (request == null) {
+        logger.warn("Intento de login sin request body");
+        return ResponseEntity.badRequest()
+            .body(new ErrorResponse("Request body requerido", 400));
+    }
+    
+    // VALIDACIÓN 2: Username no es null/vacío
+    if (request.name() == null || request.name().trim().isEmpty()) {
+        logger.warn("Intento de login sin username");
+        return ResponseEntity.badRequest()
+            .body(new ErrorResponse("Username requerido", 400));
+    }
+    
+    // VALIDACIÓN 3: Password no es null/vacío
+    if (request.password() == null || request.password().isEmpty()) {
+        logger.warn("Intento de login sin password");
+        return ResponseEntity.badRequest()
+            .body(new ErrorResponse("Password requerido", 400));
+    }
+    
+    try {
+        // Intenta autenticar
+        Authentication auth = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                request.name().trim(), 
+                request.password()
+            )
+        );
+        
+        logger.info("Login exitoso para usuario: {}", request.name());
+        // ... resto del código
+        
+    } catch (BadCredentialsException e) {
+        logger.warn("Credenciales inválidas para usuario: {}", request.name());
+        return ResponseEntity.status(401)
+            .body(new ErrorResponse("Usuario o contraseña inválida", 401));
+    } catch (UsernameNotFoundException e) {
+        logger.warn("Usuario no encontrado: {}", request.name());
+        return ResponseEntity.status(401)
+            .body(new ErrorResponse("Usuario o contraseña inválida", 401));
+    }
+}
+```
+
+**Qué cambió**: 
+- Validación explícita de request no null
+- Validación de username (no null, no vacío)
+- Validación de password (no null, no vacío)
+- Try-catch para `BadCredentialsException` y `UsernameNotFoundException`
+- HTTP 400 para input inválido, HTTP 401 para credenciales incorrectas
+- Logging en cada etapa
+
+**HTTP Status**: 400 Bad Request (input vacío) | 401 Unauthorized (credenciales inválidas)
+
+---
