@@ -1869,3 +1869,267 @@ Los siguientes archivos están **listos para usar** en el repositorio:
 *Para cualquier duda sobre las correcciones, contactar a QA Tester*
 
 
+
+
+**QA Tester**: Vanesa María del Mar González-Juan Jose Coñoman Peralta  
+**Fecha**: 2026-10-12  
+** Solicitante**: ia_extraccion
+
+import os
+import json
+import time
+import logging
+from google import genai
+from google.genai import types
+
+# ===============================================
+# CONFIGURAR LOGGING ESTRUCTURADO
+# ===============================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# ===============================================
+# VALIDACIÓN: GEMINI_API_KEY CONFIGURADA
+# ===============================================
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY or GEMINI_API_KEY.strip() == "":
+    logger.error(" GEMINI_API_KEY no configurada en variables de entorno")
+    raise RuntimeError(
+        "Error crítico: GEMINI_API_KEY no está configurada. "
+        "Configúrala en tu archivo .env o variables de entorno."
+    )
+
+logger.info("GEMINI_API_KEY encontrada en variables de entorno")
+
+# Inicializar cliente de Gemini
+try:
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    logger.info(" Cliente de Gemini inicializado correctamente")
+except Exception as e:
+    logger.error(f"Error inicializando cliente Gemini: {str(e)}")
+    raise RuntimeError(f"No se pudo inicializar cliente Gemini: {str(e)}")
+
+
+def clasificar_documento(ruta_archivo):
+    """
+    Clasifica un documento clínico usando Gemini.
+
+    Args:
+        ruta_archivo (str): Ruta al archivo del documento
+
+    Returns:
+        dict: Resultado JSON del clasificador o None si falla
+
+    Raises:
+        ValueError: Si el archivo no existe
+    """
+
+    # ===============================================
+    # VALIDACIÓN: Archivo existe
+    # ===============================================
+    if not os.path.exists(ruta_archivo):
+        logger.error(f"Archivo no encontrado: {ruta_archivo}")
+        raise ValueError(f"Archivo no encontrado: {ruta_archivo}")
+
+    if not os.path.isfile(ruta_archivo):
+        logger.error(f"La ruta no es un archivo: {ruta_archivo}")
+        raise ValueError(f"La ruta no es un archivo: {ruta_archivo}")
+
+    logger.info(f"Cargando documento desde el repositorio de ingesta: {ruta_archivo}...")
+
+    # Configuración de reintentos para lidiar con el error 503
+    max_intentos = 3
+    tiempo_espera = 4
+    exito = False
+
+    for intento in range(1, max_intentos + 1):
+        try:
+            logger.info(
+                f"[Intento {intento} de {max_intentos}] "
+                "Subiendo archivo y conectando con Gemini..."
+            )
+
+            # ===============================================
+            # Subir el archivo completo al buffer de la API de Gemini (CON TIMEOUT)
+            # ===============================================
+            try:
+                archivo_subido = client.files.upload(file=ruta_archivo)
+                logger.info(" Archivo cargado exitosamente en el buffer de la API")
+
+            except TimeoutError:
+                logger.warning(f"Timeout al subir archivo (intento {intento})")
+                if intento < max_intentos:
+                    logger.info(f"Esperando {tiempo_espera}s antes de reintentar...")
+                    time.sleep(tiempo_espera)
+                    continue
+                else:
+                    logger.error("Se agotaron los reintentos por timeout")
+                    return None
+            except Exception as e:
+                logger.error(f"Error subiendo archivo: {str(e)}")
+                raise
+
+            # ===============================================
+            # Prompt avanzado para Clasificación + Extracción de Entidades
+            # ===============================================
+            prompt_multimodal = """
+Actúa como el motor de clasificación y extracción inteligente de documentos clínicos para el proyecto MediFlow.
+Analiza el documento adjunto completo y realiza las siguientes tareas:
+
+1. Clasifícalo estrictamente en una de estas categorías:
+   Receta, Informe de Estudio por Imágenes, Orden de Procedimiento, Epicrisis o Certificado Médico.
+
+2. Extrae los datos clave del paciente, del médico solicitante y determina el nivel de prioridad (Rutina o Urgente).
+
+INSTRUCCIONES DE UMBRAL Y ENRUTAMIENTO:
+- Calcula un score de confianza numérico (entre 0 y 1) para la clasificación.
+- Si el score es menor a 0.60 o hay ambigüedad crítica, marca "requiere_auditoria_humana": true y enruta a la cola de revisión.
+- Si es mayor o igual, enruta según la urgencia clínica.
+
+DEVUELVE ÚNICAMENTE UN JSON VÁLIDO CON ESTA ESTRUCTURA EXACTA (sin texto adicional ni bloques markdown extra):
+{
+  "status": "procesado",
+  "documento_id": "...",
+  "clasificacion": {
+    "tipo_documento": "...",
+    "especialidad": "...",
+    "nivel_prioridad": "Rutina",
+    "score_confianza_clasificacion": 0.00
+  },
+  "datos_extraidos": {
+    "paciente": {
+      "nombre": "...",
+      "rut": "...",
+      "edad": 0
+    },
+    "medico_solicitante": {
+      "nombre": "...",
+      "matricula": "..."
+    },
+    "estudio_realizado": "...",
+    "diagnostico_principal": "...",
+    "cie10_sugerido": "..."
+  },
+  "decision_enrutamiento": {
+    "destino_principal": "...",
+    "requiere_auditoria_humana": false,
+    "justificacion_enrutamiento": "..."
+  },
+  "almacenamiento_oci": {
+    "bucket": "mediflow-documentos-clinicos",
+    "ruta_objeto": "...",
+    "status_backup": "exito"
+  }
+}
+"""
+
+            logger.info("Enviando archivo y prompt estructurado a Gemini 3.6 Flash...")
+
+            # ===============================================
+            # Llamada multimodal con el archivo subido y el prompt (CON TIMEOUT)
+            # ===============================================
+            try:
+                response = client.models.generate_content(
+                    model='gemini-3.6-flash',
+                    contents=[archivo_subido, prompt_multimodal],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                    ),
+                )
+                logger.info(" Gemini procesó el documento exitosamente")
+
+            except TimeoutError:
+                logger.warning(f"Timeout en generate_content (intento {intento})")
+                if intento < max_intentos:
+                    logger.info(f"Esperando {tiempo_espera}s antes de reintentar...")
+                    time.sleep(tiempo_espera)
+                    continue
+                else:
+                    logger.error("Se agotaron los reintentos por timeout")
+                    return None
+            except Exception as e:
+                logger.error(f"Error en generate_content: {str(e)}")
+                raise
+
+            # ===============================================
+            # Parsear respuesta
+            # ===============================================
+            try:
+                resultado_json = json.loads(response.text)
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Respuesta de Gemini no es JSON válido: {str(e)}")
+                logger.error(f"Respuesta recibida: {response.text[:200]}...")
+                if intento < max_intentos:
+                    logger.info(f"Esperando {tiempo_espera}s antes de reintentar...")
+                    time.sleep(tiempo_espera)
+                    continue
+                else:
+                    return None
+
+            logger.info("CLASIFICACIÓN Y EXTRACCIÓN EXITOSA")
+
+            logger.debug(
+                f"Resultado: {json.dumps(resultado_json, indent=2, ensure_ascii=False)}"
+            )
+
+            # Imprimir resultado completo en formato JSON
+            print("\n--- RESULTADO DE CLASIFICACIÓN Y EXTRACCIÓN EXITOSO ---")
+            print(json.dumps(resultado_json, indent=4, ensure_ascii=False))
+
+            exito = True
+            return resultado_json
+
+        except Exception as e:
+            error_str = str(e)
+
+            logger.error(
+                f" Falla en el intento {intento}: {error_str}"
+            )
+
+            # Comprobar si es un error temporal de Gemini (503 UNAVAILABLE)
+            if "503" in error_str or "UNAVAILABLE" in error_str:
+                if intento < max_intentos:
+                    logger.info(
+                        f"Servidores de Gemini ocupados. "
+                        f"Esperando {tiempo_espera} segundos antes de reintentar..."
+                    )
+                    time.sleep(tiempo_espera)
+                else:
+                    logger.error(
+                        "Se agotaron los reintentos "
+                        "debido a la saturación del servidor (Error 503)."
+                    )
+            else:
+                logger.error(
+                    " Error diferente al de saturación. "
+                    "Deteniendo ejecución."
+                )
+                break
+
+    if not exito:
+        logger.error("El proceso no pudo completarse después de todos los intentos.")
+        print("\nEl proceso no pudo completarse. Vuelve a intentarlo más tarde.")
+
+    return None
+
+
+# ===============================================
+# Main - Para pruebas locales
+# ===============================================
+if __name__ == "__main__":
+    # 1. Definir la ruta del archivo del examen de laboratorio
+    ruta_archivo = "recibidos/prueba.pdf"
+
+    # 2. Clasificar documento
+    resultado = clasificar_documento(ruta_archivo)
+
+    # 3. Mostrar resultado
+    if resultado:
+        logger.info("Clasificación completada exitosamente")
+    else:
+        logger.error(" No se pudo clasificar el documento")
