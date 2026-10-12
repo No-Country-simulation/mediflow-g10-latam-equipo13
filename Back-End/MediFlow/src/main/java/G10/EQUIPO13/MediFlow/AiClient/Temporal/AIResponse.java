@@ -1,4 +1,4 @@
-package G10.EQUIPO13.MediFlow.AiClient;
+package G10.EQUIPO13.MediFlow.AiClient.Temporal;
 
 import java.math.BigDecimal;
 
@@ -9,7 +9,7 @@ public record AIResponse(
         String documentoId,
         BigDecimal score,
         String nombrePaciente,
-        String DiagnosticoPaciente,
+        String diagnosticoPaciente,
         Short edad,
         String rut,
         String estudioRealizado,

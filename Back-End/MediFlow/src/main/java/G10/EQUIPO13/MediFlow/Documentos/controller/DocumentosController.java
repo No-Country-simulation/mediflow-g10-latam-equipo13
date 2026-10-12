@@ -23,15 +23,6 @@ public class DocumentosController {
 
 
     @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
-    @PostMapping("/analyze/text")
-    public DocumentosResponse analyzeText(
-            @RequestBody @Valid DocumentosRequest documentosRequest) {
-
-        return documentosService.analizeText(documentosRequest);
-    }
-
-
-    @PreAuthorize("hasAnyRole('ADMIN', 'PERSONAL', 'AUDITOR')")
     @PostMapping(
             value = "/analyze/file",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE

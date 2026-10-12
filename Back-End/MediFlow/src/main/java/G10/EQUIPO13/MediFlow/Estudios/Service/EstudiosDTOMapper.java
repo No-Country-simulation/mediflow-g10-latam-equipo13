@@ -1,5 +1,6 @@
 package G10.EQUIPO13.MediFlow.Estudios.Service;
 
+import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
 import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosEntity;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
@@ -40,6 +41,20 @@ public EstudioResponse toResponse(EstudiosEntity entity){
     return response;
 }
 
+    public EstudiosEntity toDomainFromAI(ResultadoTriaje resultadoTriaje, UsuariosEntity medico, PacienteEntity paciente){
+
+        EstudiosEntity estudiosEntity = new EstudiosEntity();
+        estudiosEntity.setNombre(resultadoTriaje.datosExtraidos().estudioRealizado());
+        estudiosEntity.setDiagnosticoPrincipal(resultadoTriaje.datosExtraidos().diagnosticoPrincipal());
+        estudiosEntity.setCie10Sugerido(resultadoTriaje.datosExtraidos().cie10Sugerido());
+        estudiosEntity.setPaciente(paciente);
+        estudiosEntity.setMedico(medico);
+
+        estudiosEntity.setFecha(LocalDateTime.now());
+
+        return estudiosEntity;
+
+    }
 
 
 }

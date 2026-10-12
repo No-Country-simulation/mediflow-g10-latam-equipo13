@@ -1,7 +1,8 @@
 package G10.EQUIPO13.MediFlow.Pacientes.Service;
 
+import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.Estado;
-import G10.EQUIPO13.MediFlow.AiClient.AIResponse;
+import G10.EQUIPO13.MediFlow.AiClient.Temporal.AIResponse;
 import G10.EQUIPO13.MediFlow.Pacientes.Controller.PacienteRequest;
 import G10.EQUIPO13.MediFlow.Pacientes.Controller.PacienteResponse;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
@@ -14,16 +15,16 @@ import java.time.LocalDateTime;
 public class PacientesDTOMapper {
 
 
-    public PacienteEntity toDomainFromAI(AIResponse aiResponse, UsuariosEntity user){
+    public PacienteEntity toDomainFromAI(ResultadoTriaje r, UsuariosEntity user){
 
         PacienteEntity pacienteEntity = new PacienteEntity();
-        pacienteEntity.setNombre(aiResponse.nombrePaciente());
-        pacienteEntity.setDiagnostico(aiResponse.DiagnosticoPaciente());
-        pacienteEntity.setEdad(aiResponse.edad());
-        pacienteEntity.setRut(aiResponse.rut());
+        pacienteEntity.setNombre(r.datosExtraidos().paciente().nombre());
+        pacienteEntity.setDiagnostico(r.datosExtraidos().diagnosticoPrincipal());
+        pacienteEntity.setEdad(r.datosExtraidos().paciente().edad());
+        pacienteEntity.setRut(r.datosExtraidos().paciente().rut());
         pacienteEntity.setFechaRegistro(LocalDateTime.now());
         pacienteEntity.setFechaActualizacion(LocalDateTime.now());
-        pacienteEntity.setEstado(Estado.rutina);
+        pacienteEntity.setEstado(Estado.INTERNADO);
         pacienteEntity.setUsuario(user);
 
         return pacienteEntity;

@@ -1,6 +1,5 @@
 package G10.EQUIPO13.MediFlow.AiClient.Temporal;
 
-import G10.EQUIPO13.MediFlow.AiClient.AIResponse;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 

@@ -1,5 +1,7 @@
 package G10.EQUIPO13.MediFlow.AiClient;
 
+import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
+import G10.EQUIPO13.MediFlow.AiClient.Temporal.AIResponseMapper;
 import org.springframework.http.client.MultipartBodyBuilder;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.AIClientException;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,9 +9,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 @Service
 public class AIClient {
@@ -43,7 +42,7 @@ public class AIClient {
                 .build();
     }
 
-    public AIResponse analizarDocumento(MultipartFile archivo) {
+    public ResultadoTriaje analizarDocumento(MultipartFile archivo) {
         try {
 
             MultipartBodyBuilder builder = new MultipartBodyBuilder();
@@ -72,10 +71,7 @@ public class AIClient {
                             ? resultadoCrudo.contenido()
                             : null;
 
-            return aiResponseMapper.toAIResponse(
-                    resultadoCrudo,
-                    contenido
-            );
+            return resultadoCrudo;
 
         } catch (ResourceAccessException e) {
             throw new AIClientException(
