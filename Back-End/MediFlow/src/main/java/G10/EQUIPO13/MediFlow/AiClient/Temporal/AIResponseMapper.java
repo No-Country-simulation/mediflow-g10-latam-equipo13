@@ -1,5 +1,6 @@
-package G10.EQUIPO13.MediFlow.AiClient;
+package G10.EQUIPO13.MediFlow.AiClient.Temporal;
 
+import G10.EQUIPO13.MediFlow.AiClient.DTOs.*;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;

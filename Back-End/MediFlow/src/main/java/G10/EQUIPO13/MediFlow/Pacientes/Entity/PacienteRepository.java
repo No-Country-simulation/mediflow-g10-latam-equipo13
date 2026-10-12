@@ -11,6 +11,9 @@ public interface PacienteRepository extends JpaRepository<PacienteEntity, Long> 
 
     Optional<PacienteEntity> findByNombre(String nombre);
 
+    Optional<PacienteEntity> findByRutAndEstado(String rut, Estado estado);
+
+    Optional<PacienteEntity> findByNombreAndEstado(String nombre, Estado estado);
 
 
 }

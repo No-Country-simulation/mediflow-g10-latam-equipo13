@@ -1,14 +1,16 @@
 package G10.EQUIPO13.MediFlow.Documentos.Service;
 
 import G10.EQUIPO13.MediFlow.AiClient.AIClient;
-import G10.EQUIPO13.MediFlow.AiClient.AIResponse;
-import G10.EQUIPO13.MediFlow.AiClient.Temporal.GeminiAnalyzer;
+import G10.EQUIPO13.MediFlow.AiClient.DTOs.ResultadoTriaje;
 import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosEntity;
 import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosRepository;
-import G10.EQUIPO13.MediFlow.Documentos.controller.DocumentosRequest;
 import G10.EQUIPO13.MediFlow.Documentos.controller.DocumentosResponse;
+import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosEntity;
+import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosRepository;
+import G10.EQUIPO13.MediFlow.Estudios.Service.EstudiosDTOMapper;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.AccesoDenegadoException;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.ResourceNotFoundException;
+import G10.EQUIPO13.MediFlow.Pacientes.Entity.Estado;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteRepository;
 import G10.EQUIPO13.MediFlow.Pacientes.Service.PacientesDTOMapper;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 
 @AllArgsConstructor
 @Service
@@ -32,45 +35,18 @@ public class DocumentosService {
 
     private final DocumentosDTOMapper mapper;
 
-    private final GeminiAnalyzer gemini;
-
     private final AIClient aiClient;
 
     private final PacienteRepository pacienteRepository;
 
     private final PacientesDTOMapper pacientesMapper;
 
+    private final EstudiosRepository estudiosRepository;
 
-    @Transactional
-    public DocumentosResponse analizeText(DocumentosRequest documentosRequest) {
+    private final EstudiosDTOMapper estudiosMapper;
 
-        UsuariosEntity user = currentUserService.getCurrentUserId();
 
-        if (user.getRol() == Roles.NO_ASIGNADO) {
 
-            throw new AccesoDenegadoException(
-                    "El rol " + user.getRol()
-                            + " no tiene permisos para realizar esta acción"
-            );
-        }
-
-        AIResponse aiResponse = gemini.analyzeText(
-                documentosRequest.content()
-        );
-
-        DocumentosEntity entity =
-                mapper.toEntity(aiResponse, user);
-
-        DocumentosEntity documentoSaved =
-                documentosRepository.save(entity);
-
-        PacienteEntity paciente =
-                pacientesMapper.toDomainFromAI(aiResponse, user);
-
-        pacienteRepository.save(paciente);
-
-        return mapper.toResponse(documentoSaved);
-    }
 
 
     @Transactional
@@ -89,29 +65,48 @@ public class DocumentosService {
         /*
          * Enviamos el archivo al servicio Python/FastAPI.
          */
-        AIResponse aiResponse =
-                aiClient.analizarDocumento(archivo);
 
-        /*
-         * Convertimos la respuesta de IA
-         * en la entidad de documentos.
-         */
+        ResultadoTriaje resultado = aiClient.analizarDocumento(archivo);
+
+        //documentos
         DocumentosEntity entity =
-                mapper.toEntity(aiResponse, user);
+                mapper.toEntityFromAI(resultado,user);
 
         DocumentosEntity documentoSaved =
                 documentosRepository.save(entity);
 
-        /*
-         * Guardamos también los datos del paciente
-         * extraídos por la IA.
-         */
-        PacienteEntity paciente =
-                pacientesMapper.toDomainFromAI(aiResponse, user);
 
-        pacienteRepository.save(paciente);
+        //registrar paciente
+
+        Optional<PacienteEntity> pacienteActivo =
+                pacienteRepository.findByNombreAndEstado(
+                        resultado.datosExtraidos().paciente().nombre(),
+                        Estado.INTERNADO
+                );
+
+        PacienteEntity paciente;
+
+        if (pacienteActivo.isPresent()) {
+
+            // Ya existe un ingreso activo: reutilizarlo
+            paciente = pacienteActivo.get();
+
+        } else {
+
+            // No tiene un ingreso activo:
+            // puede ser un paciente nuevo o alguien que vuelve tras el alta.
+
+            paciente = pacientesMapper.toDomainFromAI(resultado, user);
+            paciente = pacienteRepository.save(paciente);
+        }
+
+        EstudiosEntity estudio =
+                estudiosMapper.toDomainFromAI(resultado, user, paciente);
+
+        estudiosRepository.save(estudio);
 
         return mapper.toResponse(documentoSaved);
+
     }
 
 

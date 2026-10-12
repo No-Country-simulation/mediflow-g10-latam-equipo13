@@ -20,6 +20,8 @@ public class DocumentosEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String status;
+
     private String tipo;
 
     private String contenido;
@@ -36,6 +38,10 @@ public class DocumentosEntity {
     private LocalDateTime fechaActualizacion;
 
     private BigDecimal score;
+
+    private Boolean requiereAuditoria;
+
+    private String colaEnrutamiento;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
