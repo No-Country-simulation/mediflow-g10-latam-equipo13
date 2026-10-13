@@ -2198,3 +2198,24 @@ public ResponseEntity<?> login(@RequestBody LoginRequest request) {
 **HTTP Status**: 400 Bad Request (input vacío) | 401 Unauthorized (credenciales inválidas)
 
 ---
+
+
+**backend solicita validar PR de OCI **
+
+# ISSUE: Gaps vs CONTRATO_BACKEND.md
+
+## Hallazgo QA
+Backend_FastAPI NO implementó campos del contrato:
+- almacenamiento_oci
+- decision_enrutamiento
+- notificacion_generada
+
+## Impacto
+Frontend espera estos campos (CONTRATO línea X).
+Sin ellos, el frontend rompe.
+
+## Validación Requerida
+Implementar según especificación del contrato antes de Demo Day.
+
+## Status
+ BLOCKER
