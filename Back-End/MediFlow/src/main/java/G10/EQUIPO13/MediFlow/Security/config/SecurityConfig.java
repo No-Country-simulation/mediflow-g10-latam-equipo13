@@ -44,6 +44,13 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
 
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info"
+
+                        ).permitAll()
+
                         // Endpoint temporal para probar la IA
                         .requestMatchers("/test-analizar").permitAll()
 

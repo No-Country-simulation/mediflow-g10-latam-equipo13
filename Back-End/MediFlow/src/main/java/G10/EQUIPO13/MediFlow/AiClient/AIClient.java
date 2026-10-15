@@ -17,7 +17,7 @@ public class AIClient {
     public AIClient(
 
             RestClient.Builder builder,
-            @Value("${PYTHON_URL}") String baseUrl
+            @Value("${python.url}") String baseUrl
     ) {
 
         this.restClient = builder

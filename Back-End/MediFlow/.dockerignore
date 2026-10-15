@@ -1,0 +1,17 @@
+.git
+.gitignore
+.idea
+.vscode
+.settings
+.classpath
+.project
+
+.mvn
+mvnw
+mvnw.cmd
+
+src/
+*.iml
+
+.env
+.env.*
