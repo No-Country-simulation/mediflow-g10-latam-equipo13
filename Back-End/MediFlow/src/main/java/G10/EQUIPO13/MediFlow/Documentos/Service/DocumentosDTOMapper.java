@@ -31,6 +31,7 @@ public class DocumentosDTOMapper {
                 .colaEnrutamiento(
                         resultado.clasificacion().colaEnrutamiento()
                 )
+                .nombreMedico(resultado.datosExtraidos().medicoSolicitante().nombre())
                 .usuario(usuariosEntity)
                 .fechaRegistro(LocalDateTime.now())
                 .fechaActualizacion(LocalDateTime.now())
@@ -54,6 +55,7 @@ public class DocumentosDTOMapper {
                 documentosEntity.getScore(),
                 documentosEntity.getRequiereAuditoria(),
                 documentosEntity.getColaEnrutamiento(),
+                documentosEntity.getDocumentoId(),
                 nombre
         );
 

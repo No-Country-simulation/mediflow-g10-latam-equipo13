@@ -16,7 +16,8 @@ public record DocumentosResponse(
         BigDecimal score,
         Boolean requiereAuditoria,
         String colaEnruatamiento,
-        String nombreMedico
+        String nombreMedico,
+        String Usuario
 
 ) {
 }
