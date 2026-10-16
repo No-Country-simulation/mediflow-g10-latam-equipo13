@@ -2222,3 +2222,24 @@ Implementar según especificación del contrato antes de Demo Day.
 
 
 Preparé un mock de FastAPI según CONTRATO_BACKEND.md para desbloquear a frontend. Backend subió la imagen Docker antes de que el mock se usara, así que no se utilizó. El código no fue ejecutado.
+
+
+# Reporte QA: imagen Docker backend (Spring Boot)
+
+**Fecha**: 2026-10-16
+**Imagen**: docker.io/jm29r/mediflow-backend:1.0.1
+**Digest**: sha256:a4b435e82145341e87745b506ac2d3e9cc483f337a31aba9994372fd887ff6fe
+**Arquitectura**: amd64, base Ubuntu 26.04, JDK 21
+**Arranque**: `java -jar app.jar` en `/app`
+
+## Hallazgos (inspección, sin ejecutar)
+- Es un backend Spring Boot. No incluye FastAPI.
+- Variables de entorno requeridas sin valor por defecto: DB_URL, DB_USER, DB_PASSWORD, JWT_SECRET, PYTHON_URL.
+- Requiere MySQL con migraciones Flyway (ddl-auto=validate).
+- PYTHON_URL define la conexión con el servicio de IA (FastAPI). No está incluido en la imagen.
+- La versión de la app dice 1.0.0 y el tag de la imagen es 1.0.1.
+- No encontré configuración de OCI en application.properties.
+
+## Estado
+- No se ejecutó la imagen. Falta configuración del equipo.
+- Pendiente: validar contra CONTRATO_BACKEND.md una vez que haya entorno completo.
