@@ -2219,3 +2219,6 @@ Implementar según especificación del contrato antes de Demo Day.
 
 ## Status
  BLOCKER
+
+
+Preparé un mock de FastAPI según CONTRATO_BACKEND.md para desbloquear a frontend. Backend subió la imagen Docker antes de que el mock se usara, así que no se utilizó. El código no fue ejecutado.
