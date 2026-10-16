@@ -2243,3 +2243,29 @@ Preparé un mock de FastAPI según CONTRATO_BACKEND.md para desbloquear a fronte
 ## Estado
 - No se ejecutó la imagen. Falta configuración del equipo.
 - Pendiente: validar contra CONTRATO_BACKEND.md una vez que haya entorno completo.
+
+
+## Resultados de prueba: imagen jm29r/mediflow-backend:1.0.1 (Spring Boot)
+**Fecha de la prueba**: 16/10/2026
+**Entorno**: Colab, MariaDB local (Flyway e Hibernate la reportan como MySQL 5.5.5, no es MySQL real), Spring Boot 4.0.8, JDK 21.
+**Sin servicio FastAPI** (PYTHON_URL apunta a localhost:8000, sin nada escuchando).
+**OCI**: fuera de alcance. El equipo confirmó que no está conectado en esta versión (1.0.1).
+**Digest**: sha256:a4b435e82145341e87745b506ac2d3e9cc483f337a31aba9994372fd887ff6fe
+
+| # | Prueba | Resultado | Esperado | Estado propuesto |
+|---|---|---|---|---|
+| 1 | Arranque con variables de entorno | Health UP | UP | OK |
+| 2 | Flyway sobre base vacía | 4 migraciones aplicadas (v4) | Aplicar todas | OK |
+| 3 | Registro con rol ADMIN en el body | 200, rol NO_ASIGNADO | Ignorar el rol | OK |
+| 4 | Registro con matrícula | Matrícula queda NULL | Guardarla | Hallazgo, severidad media |
+| 5 | Ruta de registro | /api/user/register | Contrato dice /api/auth/register | Hallazgo, documentación |
+| 6 | Login con contraseña incorrecta | 500 INTERNAL_ERROR | 401 | Hallazgo, severidad alta |
+| 7 | Login con usuario inexistente | 500 INTERNAL_ERROR | 401 | Hallazgo, severidad alta |
+| 8 | Logging en manejador global de errores | Ningún error registrado | Registrar la causa | Hallazgo, severidad media |
+| 9 | Documentos con rol NO_ASIGNADO | 403 | 403 | OK |
+| 10 | Documentos con rol ADMIN | 200 (lista vacía) | 200 | OK |
+| 11 | Análisis sin servicio Python | 500 genérico | 502/503 con mensaje claro | Hallazgo, severidad alta |
+
+**Causa probable de 6, 7 y 11**: excepción no manejada. No confirmada, porque el manejador no registra la causa.
+**Login espera el campo `name`**, no `username`. El contrato no especifica el body del login: documentarlo.
+**Pendiente según el equipo**: OCI, sin fecha de entrega confirmada. No es un bloqueo de la imagen probada.
