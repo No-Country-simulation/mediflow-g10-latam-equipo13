@@ -18,6 +18,7 @@ import QueuePage from "./pages/QueuePage";
 import HistorialPage from "./pages/HistorialPage";
 import AuditoriaPage from "./pages/AuditoriaPage";
 import ConfiguracionPage from "./pages/ConfiguracionPage";
+import UsuariosPage from "./pages/UsuariosPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -45,6 +46,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   <Route path="/auditoria" element={<AuditoriaPage />} />
                 </Route>
                 <Route element={<ProtectedRoute roles={["ADMIN"]} />}>
+                  <Route path="/usuarios" element={<UsuariosPage />} />
                   <Route path="/configuracion" element={<ConfiguracionPage />} />
                 </Route>
               </Route>

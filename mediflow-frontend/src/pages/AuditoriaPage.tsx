@@ -11,6 +11,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import { Badge, Button, Card, Input, Select, Textarea, useToastHelpers } from '../components/ui';
+import DocumentViewer from '../components/DocumentViewer';
 import { cargarConfig } from '../lib/triageConfig';
 import {
   mensajeError,
@@ -71,6 +72,7 @@ export default function AuditoriaPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [comentario, setComentario] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [vista, setVista] = useState<'archivo' | 'texto'>('archivo');
 
   // Sin sesión (demo) se permite; con sesión solo ADMIN o AUDITOR.
   const puedeRevisar = !user || user.rol === 'ADMIN' || user.rol === 'AUDITOR';
@@ -323,13 +325,37 @@ export default function AuditoriaPage() {
 
             <div className="grid xl:grid-cols-2 gap-4">
               <Card variant="default" padding="lg">
-                <h3 className="font-bold text-neutral-900 mb-3 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-brand-500" />
-                  Contenido original
-                </h3>
-                <pre className="text-xs font-mono bg-neutral-100 text-neutral-700 p-3 rounded-lg max-h-[420px] overflow-auto whitespace-pre-wrap">
-                  {seleccionado.contenido || 'Sin contenido disponible'}
-                </pre>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <h3 className="font-bold text-neutral-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-brand-500" />
+                    Documento original
+                  </h3>
+                  <div className="inline-flex rounded-lg bg-neutral-100 p-1" role="group" aria-label="Vista del documento">
+                    {(['archivo', 'texto'] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setVista(v)}
+                        aria-pressed={vista === v}
+                        className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                          vista === v ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-700'
+                        }`}
+                      >
+                        {v === 'archivo' ? 'Archivo' : 'Texto extraído'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {vista === 'archivo' ? (
+                  <DocumentViewer
+                    documentoId={typeof seleccionado.id === 'number' ? seleccionado.id : null}
+                    onVerTexto={() => setVista('texto')}
+                  />
+                ) : (
+                  <pre className="text-xs font-mono bg-neutral-100 text-neutral-700 p-3 rounded-lg max-h-[560px] overflow-auto whitespace-pre-wrap">
+                    {seleccionado.contenido || 'Sin contenido disponible'}
+                  </pre>
+                )}
               </Card>
 
               <Card variant="default" padding="lg">

@@ -7,6 +7,7 @@ import {
   ListTree,
   ShieldCheck,
   Settings,
+  Users,
   Menu,
   X,
   LogIn,
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { to: '/auditoria', label: 'Auditoría humana', icon: ShieldCheck, roles: ['ADMIN', 'AUDITOR'] },
   { to: '/colas', label: 'Colas de enrutamiento', icon: ListTree },
   { to: '/historial', label: 'Historial', icon: History },
+  { to: '/usuarios', label: 'Usuarios y roles', icon: Users, roles: ['ADMIN'] },
   { to: '/configuracion', label: 'Configuración', icon: Settings, roles: ['ADMIN'] },
 ];
 
@@ -154,7 +156,7 @@ export default function AppShell() {
 
             {isAuthenticated && user ? (
               <UserMenu
-                user={{ name: user.nombre, email: user.email, role: user.rol }}
+                user={{ name: user.nombre, role: user.rol }}
                 onSettingsClick={user.rol === 'ADMIN' ? () => navigate('/configuracion') : undefined}
                 onLogoutClick={handleLogout}
               />
