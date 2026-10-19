@@ -147,7 +147,7 @@ export function Dropdown({ trigger, items, align = 'right', className }: Dropdow
 export interface UserMenuProps {
   user: {
     name: string;
-    email: string;
+    email?: string;
     avatar?: string;
     role: string;
   };

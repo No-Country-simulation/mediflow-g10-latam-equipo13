@@ -11,6 +11,19 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 export const UNAUTHORIZED_EVENT = 'mediflow:unauthorized';
 
+/**
+ * Con el proxy de desarrollo de Vite (URL relativa), si el backend está apagado Vite responde 500/502/504
+ * con el cuerpo vacío. Un error real del backend trae cuerpo, así que se distinguen.
+ */
+async function backendApagado(response: Response, baseUrl: string): Promise<boolean> {
+  if (!baseUrl.startsWith('/') || ![500, 502, 503, 504].includes(response.status)) return false;
+  const cuerpo = await response.clone().text().catch(() => '');
+  return cuerpo.trim() === '';
+}
+
+const MENSAJE_BACKEND_APAGADO = (nombre: string) =>
+  `No se pudo conectar con ${nombre}. Verifica que el servidor esté encendido.`;
+
 const SPRING_BOOT_URL = import.meta.env.VITE_SPRING_BOOT_URL || 'http://localhost:8080';
 const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000';
 
@@ -42,7 +55,7 @@ export interface PaginatedResponse<T> {
 export interface Usuario {
   id: number;
   nombre: string;
-  email: string;
+  email?: string; // el backend actual no maneja correo
   rol: 'ADMIN' | 'PERSONAL' | 'AUDITOR' | 'NO_ASIGNADO';
   activo: boolean;
   fechaCreacion: string;
@@ -55,13 +68,13 @@ export interface AuthResponse {
 }
 
 export interface LoginRequest {
-  email: string;
+  /** Nombre de usuario con el que se inicia sesión. */
+  nombre: string;
   password: string;
 }
 
 export interface RegisterRequest {
   nombre: string;
-  email: string;
   password: string;
 }
 
@@ -325,6 +338,10 @@ class ApiClient {
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
 
+    if (!response.ok && (await backendApagado(response, this.baseUrl))) {
+      throw { message: MENSAJE_BACKEND_APAGADO('el servidor principal (Spring Boot)'), status: 0 } as ApiError;
+    }
+
     if (!response.ok) {
       const error: ApiError = {
         message: `Error ${response.status}: ${response.statusText}`,
@@ -364,6 +381,10 @@ class ApiClient {
       } as ApiError;
     }
 
+    if (!response.ok && (await backendApagado(response, this.baseUrl))) {
+      throw { message: MENSAJE_BACKEND_APAGADO('el servidor principal (Spring Boot)'), status: 0 } as ApiError;
+    }
+
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw {
@@ -376,13 +397,23 @@ class ApiClient {
   }
 
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const data = await this.postPublico<AuthResponse>('/api/auth/login', credentials, 'Credenciales inválidas');
+    // Spring espera los campos `name` y `password`.
+    const data = await this.postPublico<AuthResponse>(
+      '/api/auth/login',
+      { name: credentials.nombre, password: credentials.password },
+      'Usuario o contraseña incorrectos'
+    );
     this.setToken(data.token);
     return data;
   }
 
   async register(data: RegisterRequest): Promise<AuthResponse> {
-    const result = await this.postPublico<AuthResponse>('/api/auth/register', data, 'Error al registrar');
+    // El nombre se manda como `nombre` y como `name` hasta confirmar con backend cuál campo usa el registro.
+    const result = await this.postPublico<AuthResponse>(
+      '/api/auth/register',
+      { nombre: data.nombre, name: data.nombre, password: data.password },
+      'Error al registrar'
+    );
     this.setToken(result.token);
     return result;
   }
@@ -448,6 +479,53 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+  }
+
+  // ---- Usuarios y roles (contrato propuesto: ver CONTRATO_BACKEND.md) ----
+  async listarUsuarios(page = 0, size = 200): Promise<Usuario[]> {
+    const data = await this.request<PaginatedResponse<Usuario> | Usuario[]>(`/api/usuarios?page=${page}&size=${size}`);
+    return Array.isArray(data) ? data : data.content;
+  }
+
+  async cambiarRolUsuario(id: number, rol: Usuario['rol']): Promise<Usuario | undefined> {
+    return this.request<Usuario | undefined>(`/api/usuarios/${id}/rol`, {
+      method: 'PATCH',
+      body: JSON.stringify({ rol }),
+    });
+  }
+
+  // ---- Archivo original del documento (contrato propuesto: GET /api/documentos/{id}/archivo) ----
+  async obtenerArchivoDocumento(id: number, signal?: AbortSignal): Promise<{ blob: Blob; tipo: string }> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/documentos/${id}/archivo`, {
+        headers: this.token ? { Authorization: `Bearer ${this.token}` } : undefined,
+        signal,
+      });
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      throw { message: 'No se pudo conectar con el servidor para descargar el archivo.', status: 0 } as ApiError;
+    }
+
+    if (response.status === 401 && this.token) {
+      this.setToken(null);
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
+    if (!response.ok && (await backendApagado(response, this.baseUrl))) {
+      throw { message: MENSAJE_BACKEND_APAGADO('el servidor principal (Spring Boot)'), status: 0 } as ApiError;
+    }
+    if (response.status === 404 || response.status === 405) {
+      throw {
+        message: 'El servidor todavía no entrega el archivo original de este documento.',
+        status: response.status,
+      } as ApiError;
+    }
+    if (!response.ok) {
+      throw { message: `No se pudo descargar el archivo (error ${response.status}).`, status: response.status } as ApiError;
+    }
+
+    const blob = await response.blob();
+    return { blob, tipo: response.headers.get('Content-Type') ?? blob.type };
   }
 
   async deleteDocumento(id: number): Promise<void> {
