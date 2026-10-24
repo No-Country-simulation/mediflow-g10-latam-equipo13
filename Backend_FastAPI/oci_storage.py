@@ -31,6 +31,7 @@ from datetime import datetime, timezone
 import oci
 
 PERFIL_OCI = os.getenv("OCI_PROFILE", "DEFAULT")
+ARCHIVO_CONFIG_OCI = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
 
 # Nombres exactos de los buckets existentes en mediflow-hackathon.
 BUCKET_RECIBIDOS = "BktRecibidos"
@@ -61,7 +62,10 @@ def _get_cliente():
     """Crea el cliente OCI una sola vez y lo reutiliza."""
     global _cliente, _namespace
     if _cliente is None:
-        config = oci.config.from_file(profile_name=PERFIL_OCI)
+        config = oci.config.from_file(
+            file_location=ARCHIVO_CONFIG_OCI,
+            profile_name=PERFIL_OCI,
+        )
         cliente = oci.object_storage.ObjectStorageClient(
             config, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY
         )

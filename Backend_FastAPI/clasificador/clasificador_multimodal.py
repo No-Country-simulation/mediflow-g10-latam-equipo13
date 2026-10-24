@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -7,10 +6,16 @@ from google import genai
 from google.genai import types
 
 
-# Inicializar cliente de Gemini
-client = genai.Client(
-    api_key=os.environ.get("GEMINI_API_KEY")
-)
+def obtener_cliente_gemini():
+    """Crea el cliente de Gemini cuando realmente se necesita."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+
+    if not api_key:
+        raise RuntimeError(
+            "Falta configurar la variable de entorno GEMINI_API_KEY."
+        )
+
+    return genai.Client(api_key=api_key)
 
 
 def clasificar_documento(ruta_archivo):
@@ -22,24 +27,23 @@ def clasificar_documento(ruta_archivo):
     print(f"Cargando documento: {ruta_archivo}...")
 
     max_intentos = 3
-    tiempo_espera = 4
 
-    for intento in range(1, max_intentos + 1):
-        try:
-            print(
-                f"\n[Intento {intento} de {max_intentos}] "
-                "Subiendo archivo y conectando con Gemini..."
-            )
+    # Crear el cliente y subir el documento una sola vez.
+    try:
+        client = obtener_cliente_gemini()
 
-            # Subir documento a Gemini
-            archivo_subido = client.files.upload(
-                file=ruta_archivo
-            )
+        archivo_subido = client.files.upload(
+            file=ruta_archivo
+        )
 
-            print("¡Archivo cargado exitosamente en Gemini!")
+        print("¡Archivo cargado exitosamente en Gemini!")
 
-            # Prompt de clasificación y extracción
-            prompt_multimodal = """
+    except Exception as e:
+        print(f"Error al preparar el documento para Gemini: {e}")
+        return None
+
+    # Prompt de clasificación y extracción.
+    prompt_multimodal = """
 Actúa como el motor de clasificación y extracción inteligente
 de documentos clínicos para el proyecto MediFlow.
 
@@ -119,9 +123,16 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
 }
 """
 
-            # Enviar documento e instrucciones a Gemini
+    # Reintentar la generación sin volver a subir el PDF.
+    for intento in range(1, max_intentos + 1):
+        try:
+            print(
+                f"\n[Intento {intento} de {max_intentos}] "
+                "Enviando documento a Gemini..."
+            )
+
             response = client.models.generate_content(
-                model="gemini-3.7-flash",
+                model="gemini-3.8-flash",
                 contents=[
                     archivo_subido,
                     prompt_multimodal
@@ -131,7 +142,7 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
                 )
             )
 
-            # Convertir respuesta de Gemini a objeto Python
+            # Convertir la respuesta a un objeto Python.
             resultado_json = json.loads(response.text)
 
             print(
@@ -147,7 +158,6 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
                 )
             )
 
-            # Entregar resultado al código que llamó a la función
             return resultado_json
 
         except Exception as e:
@@ -158,16 +168,19 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
                 f"{error_str}"
             )
 
-            # Comprobar si es un error temporal de Gemini
+            # Solo reintentar ante errores temporales 503.
             if "503" in error_str or "UNAVAILABLE" in error_str:
                 if intento < max_intentos:
+                    tiempo_espera = 4 * (2 ** (intento - 1))
+
                     print(
-                        f"Servidores ocupados. "
+                        "Gemini no está disponible temporalmente. "
                         f"Esperando {tiempo_espera} segundos "
-                        "antes de reintentar..."
+                        "antes del siguiente intento..."
                     )
 
                     time.sleep(tiempo_espera)
+
                 else:
                     print(
                         "\nSe agotaron los reintentos "
