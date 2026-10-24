@@ -8,3 +8,11 @@ venv/
 *.pem
 .oci/
 mediflow_oci.log
+
+# Documentos clínicos de prueba: nunca al repositorio (pueden tener datos reales)
+ia-extraccion/recibidos/
+# Respuestas y cuerpos de prueba con credenciales
+Back-End/MediFlow/*.json
+# Compilados
+target/
+*.tsbuildinfo
