@@ -423,20 +423,23 @@ export default function UploadPage() {
                   <div>
                     <h3 className="font-bold text-neutral-900">{doc.tipo}</h3>
                     <p className="text-sm text-neutral-500">
-                      {doc.especialidad} • <span className="font-mono text-xs">{doc.documentoId}</span> • {origen}
+                      {doc.especialidad} • <span className="font-mono text-xs">{doc.documentoId}</span>
+                      {origen !== doc.documentoId ? ` • ${origen}` : ''}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant={doc.prioridad === 'Urgente' ? 'danger' : 'success'} dot>{doc.prioridad}</Badge>
-                    <Badge variant={doc.requiereAuditoria ? 'warning' : 'success'} dot>
-                      {doc.requiereAuditoria ? 'Requiere auditoría' : 'Procesado'}
+                    <Badge variant={doc.requiereAuditoria || evaluacion.sugiereAuditoria ? 'warning' : 'success'} dot>
+                      {doc.requiereAuditoria ? 'Requiere auditoría' : evaluacion.sugiereAuditoria ? 'Revisar: confianza baja' : 'Procesado'}
                     </Badge>
                   </div>
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4 mt-4">
                   <div>
-                    <p className="text-xs text-neutral-500 mb-1.5">Confianza de la clasificación</p>
+                    <p className="text-xs text-neutral-500 mb-1.5" title="Estimación del modelo de IA, no una probabilidad exacta">
+                      Confianza estimada por la IA
+                    </p>
                     <div className="flex items-center gap-3">
                       <Progress value={doc.scoreConfianza * 100} size="md" className="flex-1" variant={confianzaVariant(doc.scoreConfianza, config.umbralConfianza)} />
                       <span className="text-sm font-semibold tabular-nums">{Math.round(doc.scoreConfianza * 100)}%</span>

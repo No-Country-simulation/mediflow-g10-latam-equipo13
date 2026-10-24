@@ -140,7 +140,7 @@ export default function QueuePage() {
           <Card variant="default" padding="lg" className="col-span-full text-center">
             <ShieldCheck className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
             <p className="text-neutral-500">No hay documentos en ninguna cola</p>
-            <Button className="mt-4" variant="primary">Procesar primer documento</Button>
+            <Button className="mt-4" variant="primary" onClick={() => navigate('/procesar')}>Procesar primer documento</Button>
           </Card>
         ) : (
           colas.map((cola) => (

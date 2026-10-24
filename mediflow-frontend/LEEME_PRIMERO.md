@@ -1,41 +1,39 @@
-# Cómo aplicar estos archivos
+# Cómo aplicar este paquete
 
-Copia el contenido de esta carpeta sobre `mediflow-frontend/` respetando las rutas (reemplaza los existentes).
+Este paquete contiene el frontend **completo**. Cópialo sobre `mediflow-frontend/` de tu repositorio y sobrescribe.
 
-## 1. Borra los duplicados u obsoletos
+## 1. Borra los archivos obsoletos (ya no se usan)
 ```powershell
-Remove-Item src\components\layout\AppShell.tsx
-Remove-Item src\components\PriorityBadge.tsx, src\components\StatusBadge.tsx, src\components\StatCard.tsx
+cd C:\Users\USUARIO\mediflow-g10-latam-equipo13\mediflow-frontend
+Remove-Item src\components\layout -Recurse -ErrorAction SilentlyContinue
+Remove-Item src\components\PriorityBadge.tsx, src\components\StatusBadge.tsx, src\components\StatCard.tsx -ErrorAction SilentlyContinue
+Remove-Item src\types -Recurse -ErrorAction SilentlyContinue
 ```
-`src/components/AppShell.tsx` queda como único AppShell (export default).
 
-## 2. Variables de entorno
+## 2. No sobrescribas `src/lib/design-system.ts`
+Ese archivo es el de tu repositorio y no viene en este paquete. Solo si no existe o le faltan escalas de color,
+usa `OPCIONAL/design-system.ts`.
+
+## 3. Variables de entorno
 ```powershell
 copy .env.example .env
 ```
-Ajusta las URLs si tus backends usan otros puertos y reinicia `npm run dev`.
-
-## 3. design-system.ts
-Tu `src/lib/design-system.ts` no me llegó. Si el tuyo ya exporta `cn`, `colors`, `spacing`, `borderRadius`,
-`shadows`, `typography`, `animation`, `breakpoints` y `zIndex`, déjalo. Si le faltan escalas de color
-(`brand`, `success`, `warning`, `danger`, `info`, `neutral`, tonos 50 a 900), usa `OPCIONAL/design-system.ts`.
+Ajusta `SPRING_TARGET` y `FASTAPI_TARGET` a los puertos donde corren tus backends. Reinicia `npm run dev` después.
 
 ## 4. Verifica
 ```powershell
 npm run typecheck
 npm run dev
 ```
+El `typecheck` debe terminar sin errores.
 
-## Pantallas
-| Ruta | Pantalla | Acceso |
-|---|---|---|
-| `/` | Landing | público |
-| `/login`, `/registro` | Autenticación | público |
-| `/inicio` | Dashboard | sesión |
-| `/procesar` | Archivo, texto pegado y 3 casos de prueba | sesión |
-| `/documentos/:id` | Detalle del documento | sesión |
-| `/colas`, `/historial` | Colas e historial | sesión |
-| `/auditoria` | Auditoría humana (aprobar, corregir, rechazar) | ADMIN, AUDITOR |
-| `/configuracion` | Umbral, términos de urgencia y destinos | ADMIN |
-
-Lo que el backend debe devolver está en `CONTRATO_BACKEND.md`.
+## 5. Sube los cambios
+```powershell
+cd C:\Users\USUARIO\mediflow-g10-latam-equipo13
+git checkout -b feature/frontend-coherente
+git add mediflow-frontend
+git diff --cached --name-only | Select-String "node_modules|\.env$"
+git commit -m "feat(frontend): login por nombre, cuenta pendiente, usuarios, visor y configuración"
+git push -u origin feature/frontend-coherente
+```
+La tercera línea no debe imprimir nada.

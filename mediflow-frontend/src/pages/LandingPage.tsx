@@ -86,7 +86,7 @@ export default function LandingPage() {
             <div className="text-center lg:text-left animate-in">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 text-brand-700 text-sm font-medium mb-6 animate-in-delayed">
                 <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse" />
-                Nuevo: IA Gemini 3.7 Flash + Pipeline Híbrido
+                IA multimodal con Gemini + revisión humana
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-neutral-950 leading-[1.1] tracking-tight mb-6 animate-in-delayed stagger-1">
@@ -96,7 +96,7 @@ export default function LandingPage() {
 
               <p className="text-lg sm:text-xl text-neutral-600 max-w-xl mx-auto lg:mx-0 mb-8 animate-in-delayed stagger-2">
                 Clasificación, extracción y enrutamiento inteligente de documentos clínicos con IA multimodal.
-                Reduce el trabajo manual en 90% y acelera la atención al paciente.
+                Reduce el trabajo manual y acelera la atención al paciente.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-12 animate-in-delayed stagger-3">
@@ -109,15 +109,15 @@ export default function LandingPage() {
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-neutral-500 animate-in-delayed stagger-4">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-success-500" />
-                  Sin tarjeta de crédito
+                  Revisión humana cuando la IA duda
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-success-500" />
-                  Setup en 2 minutos
+                  Alertas para casos urgentes
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-success-500" />
-                  Cancela cuando quieras
+                  Datos listos en JSON
                 </div>
               </div>
             </div>
@@ -318,7 +318,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/80 text-sm font-medium mb-6 animate-in">
             <span className="w-2 h-2 rounded-full bg-success-500 animate-pulse" />
-            Listo para producción • Cumple HIPAA • SOC 2 Type II
+            Hackathon ONE G10 • Oracle Next Education & Alura
           </div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-6 animate-in-delayed">
@@ -327,7 +327,7 @@ export default function LandingPage() {
           </h2>
 
           <p className="text-lg text-white/60 max-w-2xl mx-auto mb-10 animate-in-delayed stagger-1">
-            Únete a hospitales y clínicas que ya procesan miles de documentos automáticamente con MediFlow.
+            Clasifica, extrae y enruta documentos clínicos automáticamente con MediFlow.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in-delayed stagger-2">
@@ -357,7 +357,7 @@ export default function LandingPage() {
               <span className="font-extrabold text-xl text-neutral-950">MediFlow</span>
             </div>
             <p className="text-sm text-neutral-500">
-              © 2024 MediFlow - Hackathon G10 Latam. Desarrollado con ❤️ para la salud.
+              © 2026 MediFlow - Hackathon G10 Latam. Desarrollado con ❤️ para la salud.
             </p>
           </div>
         </div>

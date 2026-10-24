@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { useAuth, type Usuario } from '../lib/api';
+import PendienteAprobacionPage from '../pages/PendienteAprobacionPage';
 
 interface ProtectedRouteProps {
   /** Si se indica, solo estos roles pueden entrar. */
@@ -26,6 +27,11 @@ export default function ProtectedRoute({ roles }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  // Una cuenta nueva no puede usar la app hasta que un administrador le asigne un rol.
+  if (user?.rol === 'NO_ASIGNADO') {
+    return <PendienteAprobacionPage />;
   }
 
   if (roles && user && !roles.includes(user.rol)) {

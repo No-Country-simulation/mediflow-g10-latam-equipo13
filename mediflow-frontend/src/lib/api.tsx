@@ -11,6 +11,73 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 export const UNAUTHORIZED_EVENT = 'mediflow:unauthorized';
 
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
+const ROLES_VALIDOS: Usuario['rol'][] = ['ADMIN', 'AUDITOR', 'PERSONAL', 'NO_ASIGNADO'];
+
+/** Lee los datos (claims) de un JWT. No verifica la firma: eso lo hace el servidor. */
+export function decodificarJwt(token: string): Record<string, unknown> | null {
+  try {
+    const parte = token.split('.')[1];
+    if (!parte) return null;
+    const b64 = parte.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(parte.length / 4) * 4, '=');
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+}
+
+function rolDesde(valor: unknown): Usuario['rol'] | null {
+  const lista = Array.isArray(valor) ? valor : [valor];
+  for (const v of lista) {
+    const crudo = typeof v === 'object' && v !== null ? (v as { authority?: unknown }).authority : v;
+    const texto = String(crudo ?? '').replace(/^ROLE_/i, '').toUpperCase();
+    if (ROLES_VALIDOS.includes(texto as Usuario['rol'])) return texto as Usuario['rol'];
+  }
+  return null;
+}
+
+/** Convierte un usuario del backend (campo `name` o `nombre`, `rol`...) al formato del frontend. */
+export function normalizarUsuario(u: Record<string, unknown>): Usuario {
+  const texto = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  return {
+    id: Number(u.id ?? 0) || 0,
+    nombre: String(u.nombre ?? u.name ?? ''),
+    email: texto(u.email),
+    rol: rolDesde(u.rol ?? u.role) ?? 'NO_ASIGNADO',
+    activo: u.activo !== false && u.active !== false,
+    fechaCreacion: texto(u.fechaCreacion),
+    fechaRegistro: texto(u.fechaRegistro) ?? texto(u.fecha_registro),
+  };
+}
+
+/**
+ * Convierte la respuesta del login a { token, usuario }. Acepta varias formas (usuario/user, accessToken...)
+ * y, si la respuesta no trae el usuario, lo arma con los datos del propio JWT.
+ */
+export function normalizarSesion(data: Record<string, unknown>): { token: string; usuario: Usuario } {
+  const token = String(data.token ?? data.accessToken ?? data.access_token ?? data.jwt ?? '');
+  if (!token) throw { message: 'El servidor no devolvió un token de sesión.', status: 0 } as ApiError;
+
+  const claims = decodificarJwt(token) ?? {};
+  const u = (data.usuario ?? data.user ?? {}) as Record<string, unknown>;
+  const rol =
+    rolDesde(u.rol ?? u.role ?? data.rol ?? data.role ?? claims.rol ?? claims.role ?? claims.roles ?? claims.authorities) ??
+    'NO_ASIGNADO';
+  const nombre = String(u.nombre ?? u.name ?? data.nombre ?? data.name ?? data.username ?? claims.nombre ?? claims.name ?? claims.sub ?? '');
+
+  return {
+    token,
+    usuario: {
+      id: Number(u.id ?? data.id ?? claims.id ?? claims.userId ?? 0) || 0,
+      nombre,
+      rol,
+      activo: u.activo !== false,
+    },
+  };
+}
+
 /**
  * Con el proxy de desarrollo de Vite (URL relativa), si el backend está apagado Vite responde 500/502/504
  * con el cuerpo vacío. Un error real del backend trae cuerpo, así que se distinguen.
@@ -58,7 +125,8 @@ export interface Usuario {
   email?: string; // el backend actual no maneja correo
   rol: 'ADMIN' | 'PERSONAL' | 'AUDITOR' | 'NO_ASIGNADO';
   activo: boolean;
-  fechaCreacion: string;
+  fechaCreacion?: string;
+  fechaRegistro?: string; // así se llama en la base de datos
 }
 
 export interface AuthResponse {
@@ -78,21 +146,27 @@ export interface RegisterRequest {
   password: string;
 }
 
+/**
+ * Documento tal como lo devuelve Spring (`DocumentosResponse` de la imagen jm29r/mediflow-backend:1.0.1).
+ * Es un record de Java: cualquier campo puede venir en null.
+ */
 export interface DocumentoSpring {
   id: number;
-  tipo: string;
-  contenido: string;
-  especialidad: string;
-  documentoId: string;
-  fechaRegistro: string;
-  fechaActualizacion: string;
-  score: number;
-  nombreMedico: string;
-  prioridad: 'Rutina' | 'Urgente';
-  usuarioId: number;
+  status: string | null; // lo pone FastAPI: "procesado" o "pendiente_revision_humana"
+  tipo: string | null;
+  contenido: string | null; // texto que la IA leyó del documento
+  especialidad: string | null;
+  prioridad: string | null; // "Rutina" o "Urgente" (texto de la IA)
+  documentoId: string | null; // UUID del original en OCI
+  fechaRegistro: string | null; // LocalDateTime sin zona horaria; el contenedor corre en UTC
+  fechaActualizacion: string | null;
+  score: number | null;
+  requiereAuditoria: boolean | null;
+  colaEnruatamiento: string | null; // así, con la errata, se llama en el backend
+  /** En la 1.0.1 trae el nombre del USUARIO que subió el documento, no el del médico. No usarlo como médico. */
+  nombreMedico: string | null;
   // --- Campos que el backend debe persistir y devolver (contrato propuesto) ---
-  status?: 'procesado' | 'en_revision' | 'error';
-  requiereAuditoria?: boolean;
+  colaEnrutamiento?: string; // nombre correcto, cuando arreglen la errata
   destino?: string;
   justificacion?: string;
   nombrePaciente?: string;
@@ -191,8 +265,11 @@ export interface MedicoSolicitanteFastAPI {
 export interface ClasificacionFastAPI {
   tipo_documento: string;
   especialidad: string;
-  nivel_prioridad: 'Rutina' | 'Urgente';
+  nivel_prioridad: string; // "Rutina", "Urgente" o "SIN PRIORIDAD"
   score_confianza_clasificacion: number;
+  // FastAPI 1.0.1 manda la decisión de enrutamiento aquí, no en `decision_enrutamiento`.
+  requiere_auditoria_humana?: boolean;
+  cola_enrutamiento?: string;
 }
 
 export interface DatosExtraidosFastAPI {
@@ -218,8 +295,8 @@ export interface AlmacenamientoOCI {
 }
 
 export interface DocumentoProcesadoFastAPI {
-  status: 'procesado' | 'en_revision' | 'error';
-  documento_id: string;
+  status: string; // "procesado" o "pendiente_revision_humana"
+  documento_id: string; // UUID del original en OCI
   clasificacion: ClasificacionFastAPI;
   datos_extraidos: DatosExtraidosFastAPI;
   // Opcionales: dependen de la versión del backend (la actual de FastAPI aún no los devuelve).
@@ -294,16 +371,35 @@ class ApiClient {
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    this.token = localStorage.getItem('auth_token');
+    this.token = localStorage.getItem(TOKEN_KEY);
   }
 
   setToken(token: string | null) {
     this.token = token;
     if (token) {
-      localStorage.setItem('auth_token', token);
+      localStorage.setItem(TOKEN_KEY, token);
     } else {
-      localStorage.removeItem('auth_token');
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     }
+  }
+
+  /** Recupera el usuario de una sesión anterior (no hay endpoint "mi perfil"). Devuelve null si venció o no hay. */
+  restaurarSesion(): Usuario | null {
+    if (!this.token) return null;
+    const claims = decodificarJwt(this.token);
+    const exp = typeof claims?.exp === 'number' ? claims.exp * 1000 : null;
+    if (exp !== null && exp < Date.now()) {
+      this.setToken(null);
+      return null;
+    }
+    try {
+      const guardado = localStorage.getItem(USER_KEY);
+      if (guardado) return JSON.parse(guardado) as Usuario;
+    } catch {
+      // se ignora: se arma con el JWT
+    }
+    return normalizarSesion({ token: this.token }).usuario;
   }
 
   getToken(): string | null {
@@ -349,9 +445,9 @@ class ApiClient {
       };
       try {
         const data = await response.json();
-        error.message = data.message || error.message;
-        error.code = data.code;
-        error.details = data.details;
+        error.message = data.mensaje || data.message || error.message;
+        error.code = data.codigo ?? data.code;
+        error.details = data.detalles ?? data.details;
       } catch {
         // Ignore parse error
       }
@@ -388,38 +484,38 @@ class ApiClient {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw {
-        message: data.message || (response.status >= 500 ? `Error del servidor (${response.status})` : errorPorDefecto),
+        message: data.mensaje || data.message || (response.status >= 500 ? `Error del servidor (${response.status})` : errorPorDefecto),
         status: response.status,
+        code: data.codigo ?? data.code,
       } as ApiError;
     }
 
-    return response.json();
+    const texto = await response.text();
+    return (texto ? JSON.parse(texto) : {}) as T;
   }
 
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     // Spring espera los campos `name` y `password`.
-    const data = await this.postPublico<AuthResponse>(
+    const data = await this.postPublico<Record<string, unknown>>(
       '/api/auth/login',
       { name: credentials.nombre, password: credentials.password },
       'Usuario o contraseña incorrectos'
     );
-    this.setToken(data.token);
-    return data;
+    const { token, usuario } = normalizarSesion(data);
+    this.setToken(token);
+    localStorage.setItem(USER_KEY, JSON.stringify(usuario));
+    return { token, tipo: String(data.tipo ?? 'Bearer'), usuario };
   }
 
   async register(data: RegisterRequest): Promise<AuthResponse> {
-    // El nombre se manda como `nombre` y como `name` hasta confirmar con backend cuál campo usa el registro.
-    const result = await this.postPublico<AuthResponse>(
-      '/api/auth/register',
+    // POST /api/user/register es público y no devuelve sesión: se registra y luego se inicia sesión.
+    // El nombre se manda como `nombre` y como `name` hasta confirmar cuál campo lee el registro.
+    await this.postPublico<unknown>(
+      '/api/user/register',
       { nombre: data.nombre, name: data.nombre, password: data.password },
       'Error al registrar'
     );
-    this.setToken(result.token);
-    return result;
-  }
-
-  async getCurrentUser(): Promise<Usuario> {
-    return this.request<Usuario>('/api/usuarios/me');
+    return this.login({ nombre: data.nombre, password: data.password });
   }
 
   logout() {
@@ -432,7 +528,14 @@ class ApiClient {
 
   // Documentos
   async getDocumentos(page = 0, size = 20): Promise<PaginatedResponse<DocumentoSpring>> {
-    return this.request<PaginatedResponse<DocumentoSpring>>(`/api/documentos/findall?page=${page}&size=${size}`);
+    const data = await this.request<PaginatedResponse<DocumentoSpring> | DocumentoSpring[]>(
+      `/api/documentos/findall?page=${page}&size=${size}`
+    );
+    if (Array.isArray(data)) {
+      // El backend devuelve la lista completa, sin paginar.
+      return { content: data, totalElements: data.length, totalPages: 1, number: 0, size: data.length, first: true, last: true };
+    }
+    return data;
   }
 
   async getDocumento(id: number): Promise<DocumentoSpring> {
@@ -468,30 +571,40 @@ class ApiClient {
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw { message: data.message || `Error al procesar el archivo (${response.status})`, status: response.status } as ApiError;
+      throw { message: data.mensaje || data.message || `Error al procesar el archivo (${response.status})`, status: response.status } as ApiError;
     }
 
     return response.json();
   }
 
   async revisarDocumento(id: number, payload: RevisionRequest): Promise<DocumentoSpring> {
-    return this.request<DocumentoSpring>(`/api/documentos/${id}/revision`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
+    try {
+      return await this.request<DocumentoSpring>(`/api/documentos/${id}/revision`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      const status = (e as ApiError)?.status;
+      if (status === 404 || status === 405) {
+        throw {
+          message: 'El servidor todavía no permite guardar revisiones (falta el endpoint de revisión).',
+          status,
+        } as ApiError;
+      }
+      throw e;
+    }
   }
 
-  // ---- Usuarios y roles (contrato propuesto: ver CONTRATO_BACKEND.md) ----
-  async listarUsuarios(page = 0, size = 200): Promise<Usuario[]> {
-    const data = await this.request<PaginatedResponse<Usuario> | Usuario[]>(`/api/usuarios?page=${page}&size=${size}`);
-    return Array.isArray(data) ? data : data.content;
+  // ---- Usuarios y roles (rutas reales del backend; solo ADMIN) ----
+  async listarUsuarios(): Promise<Usuario[]> {
+    type Crudo = Record<string, unknown>;
+    const data = await this.request<{ content: Crudo[] } | Crudo[]>('/api/user/findAll');
+    return (Array.isArray(data) ? data : data.content ?? []).map(normalizarUsuario);
   }
 
   async cambiarRolUsuario(id: number, rol: Usuario['rol']): Promise<Usuario | undefined> {
-    return this.request<Usuario | undefined>(`/api/usuarios/${id}/rol`, {
-      method: 'PATCH',
-      body: JSON.stringify({ rol }),
-    });
+    const r = await this.request<Record<string, unknown> | undefined>(`/api/user/${id}/rol/${rol}`, { method: 'PATCH' });
+    return r && typeof r === 'object' && Object.keys(r).length ? normalizarUsuario(r) : undefined;
   }
 
   // ---- Archivo original del documento (contrato propuesto: GET /api/documentos/{id}/archivo) ----
@@ -585,8 +698,10 @@ class FastApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+      // `detail` puede ser texto o un objeto { mensaje, etapa, documento_id }.
+      const detalle = error.detail;
       throw {
-        message: error.detail || `Error ${response.status}: ${response.statusText}`,
+        message: (typeof detalle === 'string' ? detalle : detalle?.mensaje) || `Error ${response.status}: ${response.statusText}`,
         status: response.status,
       } as ApiError;
     }
@@ -642,31 +757,56 @@ export const fastApi = new FastApiClient(FASTAPI_URL);
 /** El backend rellena los datos que faltan con textos como "SIN NOMBRE": aquí se tratan como vacíos. */
 export function sinPlaceholder(valor: string | null | undefined): string {
   const v = (valor ?? '').trim();
-  return /^SIN (NOMBRE|RUT|MATRICULA|MATRÍCULA|ESPECIALIDAD)$/i.test(v) ? '' : v;
+  return /^SIN (NOMBRE|RUT|MATRICULA|MATRÍCULA|ESPECIALIDAD|DEFINIR)$/i.test(v) ? '' : v;
+}
+
+/** La IA devuelve la prioridad como texto libre ("Urgente", "urgente", "SIN PRIORIDAD"...). */
+function normalizarPrioridad(valor: string | null | undefined): DocumentoUnificado['prioridad'] {
+  return /urgent/i.test(valor ?? '') ? 'Urgente' : 'Rutina';
+}
+
+/** FastAPI marca los dudosos como "pendiente_revision_humana"; en el frontend eso es 'en_revision'. */
+function normalizarStatus(valor: string | null | undefined, requiereAuditoria: boolean): DocumentoUnificado['status'] {
+  const v = (valor ?? '').toLowerCase();
+  if (v === 'error') return 'error';
+  if (requiereAuditoria || /revisi/.test(v)) return 'en_revision';
+  return 'procesado';
+}
+
+/**
+ * Spring manda las fechas como LocalDateTime, sin zona horaria, y el contenedor corre en UTC.
+ * Sin zona, el navegador las leería como hora local (5 horas corridas en Colombia): se leen como UTC.
+ */
+function fechaDelServidor(valor: string | null | undefined): string {
+  const texto = (valor ?? '').trim();
+  if (!texto) return '';
+  const fecha = new Date(/(Z|[+-]\d{2}:?\d{2})$/i.test(texto) ? texto : `${texto}Z`);
+  return Number.isNaN(fecha.getTime()) ? texto : fecha.toISOString();
 }
 
 export function springToUnificado(doc: DocumentoSpring): DocumentoUnificado {
   const requiereAuditoria = doc.requiereAuditoria ?? false;
   return {
     id: doc.id,
-    documentoId: doc.documentoId,
-    tipo: doc.tipo,
-    especialidad: doc.especialidad,
-    prioridad: doc.prioridad,
-    scoreConfianza: doc.score,
+    documentoId: doc.documentoId ?? String(doc.id),
+    tipo: doc.tipo ?? 'SIN CLASIFICAR',
+    especialidad: doc.especialidad ?? '',
+    prioridad: normalizarPrioridad(doc.prioridad),
+    scoreConfianza: Number(doc.score ?? 0),
     paciente: {
       nombre: sinPlaceholder(doc.nombrePaciente),
       rut: sinPlaceholder(doc.rutPaciente),
       edad: doc.edadPaciente ?? null,
     },
     medico: {
-      nombre: sinPlaceholder(doc.nombreMedico),
+      // `nombreMedico` no se usa: en la 1.0.1 trae al usuario que subió el documento (ver CONTRATO_BACKEND.md).
+      nombre: '',
       matricula: sinPlaceholder(doc.matricula),
     },
     estudioRealizado: doc.estudioRealizado ?? null,
     diagnosticoPrincipal: doc.diagnosticoPrincipal ?? null,
     cie10Sugerido: doc.cie10Sugerido ?? null,
-    destino: doc.destino ?? '',
+    destino: sinPlaceholder(doc.destino ?? doc.colaEnrutamiento ?? doc.colaEnruatamiento),
     requiereAuditoria,
     justificacion: doc.justificacion ?? '',
     almacenamiento: {
@@ -674,9 +814,9 @@ export function springToUnificado(doc: DocumentoSpring): DocumentoUnificado {
       ruta: '',
       status: '',
     },
-    contenido: doc.contenido,
-    fecha: doc.fechaRegistro,
-    status: doc.status ?? (requiereAuditoria ? 'en_revision' : 'procesado'),
+    contenido: doc.contenido ?? '',
+    fecha: fechaDelServidor(doc.fechaRegistro ?? doc.fechaActualizacion),
+    status: normalizarStatus(doc.status, requiereAuditoria),
     medicamentos: doc.medicamentos ?? [],
     notificacion: doc.notificacion ?? null,
     revision: doc.revision ?? null,
@@ -685,12 +825,14 @@ export function springToUnificado(doc: DocumentoSpring): DocumentoUnificado {
 }
 
 export function fastapiToUnificado(doc: DocumentoProcesadoFastAPI): DocumentoUnificado {
+  const requiereAuditoria =
+    doc.clasificacion.requiere_auditoria_humana ?? doc.decision_enrutamiento?.requiere_auditoria_humana ?? false;
   return {
     id: doc.documento_id,
     documentoId: doc.documento_id,
     tipo: doc.clasificacion.tipo_documento,
     especialidad: doc.clasificacion.especialidad,
-    prioridad: doc.clasificacion.nivel_prioridad,
+    prioridad: normalizarPrioridad(doc.clasificacion.nivel_prioridad),
     scoreConfianza: doc.clasificacion.score_confianza_clasificacion,
     paciente: {
       nombre: sinPlaceholder(doc.datos_extraidos.paciente.nombre),
@@ -704,8 +846,8 @@ export function fastapiToUnificado(doc: DocumentoProcesadoFastAPI): DocumentoUni
     estudioRealizado: doc.datos_extraidos.estudio_realizado,
     diagnosticoPrincipal: doc.datos_extraidos.diagnostico_principal,
     cie10Sugerido: doc.datos_extraidos.cie10_sugerido,
-    destino: doc.decision_enrutamiento?.destino_principal ?? '',
-    requiereAuditoria: doc.decision_enrutamiento?.requiere_auditoria_humana ?? doc.status === 'en_revision',
+    destino: sinPlaceholder(doc.clasificacion.cola_enrutamiento ?? doc.decision_enrutamiento?.destino_principal),
+    requiereAuditoria,
     justificacion: doc.decision_enrutamiento?.justificacion_enrutamiento ?? '',
     almacenamiento: {
       bucket: doc.almacenamiento_oci?.bucket ?? '',
@@ -714,7 +856,7 @@ export function fastapiToUnificado(doc: DocumentoProcesadoFastAPI): DocumentoUni
     },
     contenido: doc.contenido || '',
     fecha: doc.fecha || new Date().toISOString(),
-    status: doc.status,
+    status: normalizarStatus(doc.status, requiereAuditoria),
     medicamentos: doc.datos_extraidos.medicamentos ?? [],
     notificacion: doc.decision_enrutamiento?.notificacion_generada ?? null,
     revision: null,
@@ -782,11 +924,23 @@ export async function procesarArchivo(file: File, modo: ModoProcesamiento): Prom
   return springToUnificado(await springApi.analyzeFile(file));
 }
 
+/** El backend solo analiza archivos: el texto se envía como un archivo .txt. */
+function textoComoArchivo(texto: string): File {
+  return new File([texto], 'texto-clinico.txt', { type: 'text/plain' });
+}
+
 export async function procesarTexto(texto: string, modo: ModoProcesamiento, canalOrigen?: string): Promise<DocumentoUnificado> {
-  if (modo === 'fastapi') {
-    return fastapiToUnificado(await fastApi.procesarTexto(texto, canalOrigen));
+  if (modo === 'spring') {
+    // Spring no tiene endpoint de texto (solo /api/documentos/analyze/file).
+    return procesarArchivo(textoComoArchivo(texto), modo);
   }
-  return springToUnificado(await springApi.analyzeText(texto));
+  try {
+    return fastapiToUnificado(await fastApi.procesarTexto(texto, canalOrigen));
+  } catch (e) {
+    const status = (e as ApiError)?.status;
+    if (status === 404 || status === 405) return procesarArchivo(textoComoArchivo(texto), modo);
+    throw e;
+  }
 }
 
 /**
@@ -843,25 +997,15 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      if (springApi.isAuthenticated()) {
-        try {
-          const userData = await springApi.getCurrentUser();
-          setUser(userData);
-        } catch {
-          springApi.logout();
-        }
-      }
-      setLoading(false);
-    };
-    initAuth();
+    setUser(springApi.restaurarSesion());
+    setLoading(false);
 
     const onUnauthorized = () => setUser(null);
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);

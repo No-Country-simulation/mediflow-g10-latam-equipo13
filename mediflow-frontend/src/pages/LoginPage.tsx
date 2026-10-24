@@ -99,16 +99,6 @@ export default function LoginPage() {
               disabled={loading}
             />
 
-            <div className="flex items-center">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-neutral-300 text-brand-500 focus:ring-brand-500/30 focus:ring-2"
-                />
-                <span className="text-sm text-neutral-600">Recordarme</span>
-              </label>
-            </div>
-
             <Button type="submit" className="w-full" size="lg" loading={loading} leftIcon={<CheckCircle2 className="w-5 h-5" />}>
               Iniciar sesión
             </Button>
