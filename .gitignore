@@ -16,3 +16,5 @@ Back-End/MediFlow/*.json
 # Compilados
 target/
 *.tsbuildinfo
+# Documentos de entrada locales: pueden traer datos reales de pacientes, nunca al repositorio
+recibidos/
