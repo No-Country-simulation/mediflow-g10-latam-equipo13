@@ -16,11 +16,14 @@ public class PacientesDTOMapper {
 
     public PacienteEntity toDomainFromAI(ResultadoTriaje r, UsuariosEntity user){
 
+        Integer edad = r.datosExtraidos().paciente().edad();
+
         PacienteEntity pacienteEntity = new PacienteEntity();
-        pacienteEntity.setNombre(r.datosExtraidos().paciente().nombre());
+        pacienteEntity.setNombre(recortar(r.datosExtraidos().paciente().nombre()));
         pacienteEntity.setDiagnostico(r.datosExtraidos().diagnosticoPrincipal());
-        pacienteEntity.setEdad(r.datosExtraidos().paciente().edad());
-        pacienteEntity.setRut(r.datosExtraidos().paciente().rut());
+        // La columna admite 0 a 120: fuera de rango se deja vacía en vez de fallar el guardado.
+        pacienteEntity.setEdad(edad != null && edad >= 0 && edad <= 120 ? edad.shortValue() : null);
+        pacienteEntity.setRut(recortar(r.datosExtraidos().paciente().rut()));
         pacienteEntity.setFechaRegistro(LocalDateTime.now());
         pacienteEntity.setFechaActualizacion(LocalDateTime.now());
         pacienteEntity.setEstado(Estado.INTERNADO);
@@ -28,6 +31,10 @@ public class PacientesDTOMapper {
 
         return pacienteEntity;
 
+    }
+
+    private static String recortar(String valor) {
+        return valor != null && valor.length() > 255 ? valor.substring(0, 255) : valor;
     }
 
     public PacienteEntity toDomainFromDTO(PacienteRequest request, UsuariosEntity user){
