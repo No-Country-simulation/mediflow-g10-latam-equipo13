@@ -55,27 +55,38 @@ El contrato exacto de cada endpoint está en [`CONTRATO_BACKEND.md`](./CONTRATO_
 | `/configuracion` | Umbral de confianza, términos de urgencia y destinos | ADMIN |
 
 Las cuentas nuevas quedan como `NO_ASIGNADO` y ven "Tu cuenta está pendiente de aprobación" hasta que un administrador
-les asigne un rol. Después de que se lo asignen, deben cerrar sesión y volver a entrar (el rol viaja dentro del token).
+les asigne un rol. Al recargar la página, el frontend consulta `/api/auth/me` y toma el rol vigente.
 
 ## Modos de procesamiento
 - **Persistente** (por defecto con sesión): el documento se guarda y aparece en colas, historial y auditoría.
 - **Directo**: solo analiza con la IA; no se guarda nada.
 
-La "confianza" que se muestra es una **estimación del modelo de IA**, no una probabilidad exacta. Los documentos por
-debajo del umbral configurado se marcan para revisión humana.
+La "confianza" es la estimación de la IA ajustada por las reglas del agente (datos faltantes, inconsistencias y
+ambigüedades la bajan). Bajo el umbral configurado, el documento va a revisión humana.
+
+## Funciones destacadas
+- **Decisión del agente**: en el detalle de cada documento, la línea de tiempo del grafo (qué observó cada nodo y por qué eligió esa ruta).
+- **Alertas en tiempo real**: la campana de la barra superior consulta los casos urgentes cada 20 segundos.
+- **Reglas de triaje**: la pantalla Configuración guarda en el servidor el umbral, los términos de urgencia y los destinos; el agente los aplica.
+- **Auditoría humana**: visor del original, aprobar, corregir o rechazar.
+- **Exportar**: historial en CSV (Historial) o JSON (Inicio).
 
 ## Estructura
 ```
 src/
-├── components/   AppShell, ProtectedRoute, DocumentViewer, Logo y ui/ (Button, Card, Modal, Toast...)
-├── lib/          api.tsx (clientes y tipos), triageConfig.ts, demoCases.ts, archivo.ts, design-system.ts
+├── components/   AppShell, AlertasUrgentes, TrazaAgente, ProtectedRoute, DocumentViewer, Logo y ui/
+├── lib/          api.tsx (clientes y tipos), triageConfig.ts, exportar.ts, demoCases.ts, archivo.ts, design-system.ts
 └── pages/        una pantalla por ruta
 ```
 
+## Producción
+`Dockerfile` compila con Vite y sirve con nginx (`nginx.conf`), que hace de proxy a `/spring` y `/fastapi`.
+Se levanta junto al resto con `docker compose up -d --build` desde la raíz del repositorio.
+
 ## Probar el flujo completo
-1. Regístrate en `/registro` y pide a un administrador que te asigne un rol (o asígnatelo en la base de datos si eres el primero).
+1. Entra con el administrador inicial (`MEDIFLOW_ADMIN_USER`) o regístrate y pide que te asignen un rol.
 2. En `/procesar` → **Casos de prueba**, procesa los tres: rutina, urgencia y ambiguo.
-3. Revisa que aparezcan en **Colas** e **Historial**, y que el ambiguo llegue a **Auditoría**.
+3. Revisa **Colas**, la campana de alertas, la pestaña **Decisión del agente** y aprueba el ambiguo en **Auditoría**.
 
 Usa documentos con datos inventados: los archivos se envían a un servicio externo de IA.
 
@@ -87,4 +98,5 @@ Usa documentos con datos inventados: los archivos se envían a un servicio exter
 | 401 en todas las pantallas | Sesión vencida; vuelve a iniciar sesión (o quedó `VITE_SKIP_AUTH=true`) |
 | "Acceso restringido" | Tu rol no incluye esa pantalla |
 | Colas o auditoría vacías | Aún no hay documentos procesados en modo Persistente (el modo Directo no guarda nada) |
-| Médico vacío en Colas, Historial o Detalle | Spring todavía no guarda el médico (ver "Errores del backend" en el contrato) |
+| "No se pudo conectar con el servicio de IA" (503) | FastAPI apagado o Gemini saturado; reintenta en unos segundos |
+| Visor: "no tiene un archivo original guardado en OCI" | OCI no está configurado en ese entorno |

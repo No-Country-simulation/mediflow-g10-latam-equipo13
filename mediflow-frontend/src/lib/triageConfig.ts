@@ -1,9 +1,9 @@
 /**
  * Configuración de triaje editable desde la pantalla "Configuración".
- * Se guarda en este navegador (localStorage) y se intenta sincronizar con FastAPI.
- * Las reglas del frontend son orientativas: la decisión final la toma el backend.
+ * Se guarda en el servidor (Spring) y el agente la aplica en cada documento nuevo.
+ * El navegador guarda una copia para mostrarla al instante y como respaldo sin conexión.
  */
-import { SERVICE_URLS, type DocumentoUnificado } from './api';
+import { springApi, type DocumentoUnificado } from './api';
 
 export interface DestinoRuta {
   id: string;
@@ -17,6 +17,9 @@ export interface TriageConfig {
   umbralConfianza: number;
   palabrasUrgencia: string[];
   destinos: DestinoRuta[];
+  /** Solo lectura: quién y cuándo la cambió por última vez en el servidor. */
+  actualizadoPor?: string | null;
+  fechaActualizacion?: string | null;
 }
 
 export const TIPOS_DOCUMENTO = [
@@ -29,17 +32,12 @@ export const TIPOS_DOCUMENTO = [
 
 export const DEFAULT_CONFIG: TriageConfig = {
   umbralConfianza: 0.6,
+  // Mismos valores iniciales que el servidor (migración V6).
   palabrasUrgencia: [
-    'urgente',
-    'emergencia',
-    'embolia',
-    'tromboembolismo',
-    'infarto',
-    'hemorragia',
-    'disnea súbita',
-    'paro cardiorrespiratorio',
-    'sepsis',
-    'correlación clínica urgente',
+    'tromboembolismo', 'embolia pulmonar', 'tep', 'infarto', 'iam', 'síndrome coronario', 'acv',
+    'accidente cerebrovascular', 'ictus', 'sepsis', 'shock', 'hemorragia', 'paro cardiorrespiratorio',
+    'neumotórax', 'disección aórtica', 'abdomen agudo', 'crisis hipertensiva', 'anafilaxia',
+    'status epiléptico', 'disnea súbita', 'urgente', 'emergencia', 'stat',
   ],
   destinos: [
     { id: 'urgencias', nombre: 'Cola_Emergencia_Medica', tipoDocumento: '*', activo: true },
@@ -72,25 +70,35 @@ export function cargarConfig(): TriageConfig {
   }
 }
 
-export type ResultadoGuardado = 'servidor' | 'local';
-
-/** Guarda en el navegador y, si el backend lo soporta, también en el servidor. */
-export async function guardarConfig(cfg: TriageConfig): Promise<ResultadoGuardado> {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+function guardarCopiaLocal(cfg: TriageConfig) {
   try {
-    const res = await fetch(`${SERVICE_URLS.fastapi}/api/v1/configuracion`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    });
-    return res.ok ? 'servidor' : 'local';
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
   } catch {
-    return 'local';
+    // sin almacenamiento local: se sigue con la copia en memoria
   }
 }
 
+/** Trae la configuración vigente del servidor (y actualiza la copia local). */
+export async function cargarConfigServidor(): Promise<TriageConfig> {
+  const cfg = await springApi.getConfiguracion<TriageConfig>();
+  const completa: TriageConfig = {
+    ...cfg,
+    palabrasUrgencia: cfg.palabrasUrgencia?.length ? cfg.palabrasUrgencia : DEFAULT_CONFIG.palabrasUrgencia,
+    destinos: cfg.destinos?.length ? cfg.destinos : DEFAULT_CONFIG.destinos,
+  };
+  guardarCopiaLocal(completa);
+  return completa;
+}
+
+/** Guarda en el servidor (solo ADMIN). Si falla, se informa el error: no se finge que se guardó. */
+export async function guardarConfig(cfg: TriageConfig): Promise<TriageConfig> {
+  const { actualizadoPor: _a, fechaActualizacion: _f, ...cuerpo } = cfg;
+  const guardada = await springApi.guardarConfiguracion<TriageConfig>(cuerpo);
+  guardarCopiaLocal(guardada);
+  return guardada;
+}
+
 export function restablecerConfig(): TriageConfig {
-  localStorage.removeItem(STORAGE_KEY);
   return structuredClone(DEFAULT_CONFIG);
 }
 

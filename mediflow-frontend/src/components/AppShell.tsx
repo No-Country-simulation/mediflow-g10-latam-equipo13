@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import Logo from './Logo';
+import AlertasUrgentes from './AlertasUrgentes';
 import { UserMenu } from './ui';
 import { cn } from '../lib/design-system';
 import { useAuth, verificarServicios, type Usuario } from '../lib/api';
@@ -155,11 +156,14 @@ export default function AppShell() {
             </div>
 
             {isAuthenticated && user ? (
-              <UserMenu
-                user={{ name: user.nombre, role: user.rol }}
-                onSettingsClick={user.rol === 'ADMIN' ? () => navigate('/configuracion') : undefined}
-                onLogoutClick={handleLogout}
-              />
+              <div className="flex items-center gap-2">
+                <AlertasUrgentes />
+                <UserMenu
+                  user={{ name: user.nombre, role: user.rol }}
+                  onSettingsClick={user.rol === 'ADMIN' ? () => navigate('/configuracion') : undefined}
+                  onLogoutClick={handleLogout}
+                />
+              </div>
             ) : (
               <button
                 type="button"

@@ -24,6 +24,7 @@ import { Badge, Button, Card, Modal, Progress, Tabs } from '../components/ui';
 import { mensajeError, obtenerDocumentoUnificado, useAuth, type DocumentoUnificado } from '../lib/api';
 import { cargarConfig } from '../lib/triageConfig';
 import { descargarArchivo } from '../lib/exportar';
+import TrazaAgente from '../components/TrazaAgente';
 
 const decisionLabel = {
   aprobado: { label: 'Aprobado', variant: 'success' as const },
@@ -101,6 +102,22 @@ export default function DocumentDetailPage() {
     descargarArchivo(`documento-${doc.documentoId}.json`, JSON.stringify(doc, null, 2), 'application/json');
 
   const tabs = [
+    {
+      id: 'agente',
+      label: 'Decisión del agente',
+      icon: <Brain className="w-4 h-4" />,
+      content: (
+        <Card variant="default" padding="lg">
+          <h3 className="font-bold text-neutral-900 mb-1 flex items-center gap-2">
+            <Brain className="w-5 h-5 text-brand-500" /> Cómo decidió el agente
+          </h3>
+          <p className="text-sm text-neutral-500 mb-5">
+            Cada paso del grafo de decisión, con lo que observó y el motivo de la ruta elegida.
+          </p>
+          <TrazaAgente traza={doc.traza} validacion={doc.validacion} />
+        </Card>
+      ),
+    },
     {
       id: 'datos',
       label: 'Datos extraídos',
@@ -226,7 +243,9 @@ export default function DocumentDetailPage() {
               </dl>
             ) : (
               <p className="text-sm text-neutral-500">
-                Este registro no incluye datos de almacenamiento. El backend debe devolverlos para mostrar el bucket y la ruta del objeto.
+                {doc.almacenamiento.status === 'omitido'
+                  ? 'OCI no está configurado en este entorno: el resultado se guardó solo en la base de datos.'
+                  : 'Este registro no tiene datos de almacenamiento en OCI.'}
               </p>
             )}
           </Card>

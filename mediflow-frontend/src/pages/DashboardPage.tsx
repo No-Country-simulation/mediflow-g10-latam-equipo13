@@ -50,18 +50,7 @@ export default function DashboardPage() {
       setError(null);
       // Cargar desde Spring Boot (persistencia)
       const springResponse = await springApi.getDocumentos(0, 100);
-      const springDocs = springResponse.content.map(springToUnificado);
-      
-      // También intentar cargar de FastAPI si está disponible
-      let fastapiDocs: DocumentoUnificado[] = [];
-      try {
-        const fastapiList = await fastApi.healthCheck();
-        // FastAPI no tiene endpoint de listado, pero podríamos simular
-      } catch {
-        // FastAPI no disponible, usar solo Spring
-      }
-
-      const allDocs = [...springDocs, ...fastapiDocs];
+      const allDocs = springResponse.content.map(springToUnificado);
       // Ordenar por fecha descendente
       allDocs.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
       setDocumentos(allDocs);

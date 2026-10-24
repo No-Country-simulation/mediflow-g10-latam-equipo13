@@ -137,7 +137,7 @@ export default function UploadPage() {
     for (const item of pendientes) {
       setArchivos((prev) => prev.map((a) => (a.id === item.id ? { ...a, estado: 'procesando', error: undefined } : a)));
       try {
-        const doc = await procesarArchivo(item.file, modo);
+        const doc = await procesarArchivo(item.file, modo, canal);
         setArchivos((prev) => prev.map((a) => (a.id === item.id ? { ...a, estado: 'listo' } : a)));
         registrarResultado(item.file.name, doc, modo);
       } catch (e) {

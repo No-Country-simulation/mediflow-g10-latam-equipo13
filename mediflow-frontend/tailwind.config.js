@@ -1,6 +1,22 @@
 /** @type {import('tailwindcss').Config} */
 import { colors, spacing, borderRadius, shadows, typography, animation, breakpoints, zIndex } from './src/lib/design-system';
 
+// design-system.ts define los keyframes como texto CSS ("{from{...}to{...}}") y Tailwind espera objetos.
+// Pasados como texto generaban "@keyframes spin;" vacío y animate-spin dejaba de girar.
+const aKeyframes = (css) =>
+  Object.fromEntries(
+    [...css.slice(1, -1).matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, paso, cuerpo]) => [
+      paso.trim(),
+      Object.fromEntries(
+        cuerpo
+          .split(';')
+          .filter((d) => d.includes(':'))
+          .map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()])
+      ),
+    ])
+  );
+const keyframes = Object.fromEntries(Object.entries(animation.keyframes).map(([nombre, css]) => [nombre, aKeyframes(css)]));
+
 export default {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -46,22 +62,7 @@ export default {
         float: 'float 3s ease-in-out infinite',
         wiggle: 'wiggle 1s ease-in-out infinite',
       },
-      keyframes: {
-        fadeIn: animation.keyframes.fadeIn,
-        fadeOut: animation.keyframes.fadeOut,
-        slideUp: animation.keyframes.slideUp,
-        slideDown: animation.keyframes.slideDown,
-        slideLeft: animation.keyframes.slideLeft,
-        slideRight: animation.keyframes.slideRight,
-        scaleIn: animation.keyframes.scaleIn,
-        scaleOut: animation.keyframes.scaleOut,
-        spin: animation.keyframes.spin,
-        pulse: animation.keyframes.pulse,
-        ping: animation.keyframes.ping,
-        shimmer: animation.keyframes.shimmer,
-        float: animation.keyframes.float,
-        wiggle: animation.keyframes.wiggle,
-      },
+      keyframes,
       transitionDuration: animation.duration,
       transitionTimingFunction: animation.easing,
       zIndex: zIndex,
