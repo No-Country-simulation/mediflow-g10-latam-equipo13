@@ -43,8 +43,8 @@ function Anillo({ valor, etiqueta }: { valor: number; etiqueta: string }) {
   const r = 30;
   const c = 2 * Math.PI * r;
   return (
-    <div className="flex items-center gap-4 rounded-2xl glass-ink px-5 py-4">
-      <div className="relative">
+    <div className="flex items-center gap-4 min-w-0 rounded-2xl glass-ink px-5 py-4">
+      <div className="relative shrink-0">
         <svg viewBox="0 0 72 72" className="w-[72px] h-[72px] -rotate-90" aria-hidden="true">
           <defs>
             <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
@@ -58,7 +58,7 @@ function Anillo({ valor, etiqueta }: { valor: number; etiqueta: string }) {
         </svg>
         <span className="absolute inset-0 flex items-center justify-center kpi-number text-[15px] font-bold text-white">{Math.round(valor * 100)}%</span>
       </div>
-      <p className="text-sm text-white/60 leading-snug">{etiqueta}</p>
+      <p className="min-w-0 text-sm text-white/60 leading-snug">{etiqueta}</p>
     </div>
   );
 }
@@ -207,7 +207,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3">
             <Anillo valor={metrics.avgConfidence} etiqueta="Confianza promedio" />
             <Anillo valor={metrics.autoRate} etiqueta="Sin intervención humana" />
           </div>
