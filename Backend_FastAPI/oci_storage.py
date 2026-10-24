@@ -309,6 +309,58 @@ def enrutar_json_estructurado(referencia_json: dict, destino: str) -> dict:
     return resultado
 
 
+def oci_habilitado() -> bool:
+    """OCI se usa solo si hay archivo de configuración y no se deshabilitó explícitamente."""
+    if os.getenv("OCI_DESHABILITADO", "").lower() in ("1", "true", "si", "sí"):
+        return False
+    return os.path.isfile(os.path.expanduser(ARCHIVO_CONFIG_OCI))
+
+
+PATRON_ORIGINAL = re.compile(r"\d{4}/\d{2}/\d{2}/[0-9a-f-]{36}_[A-Za-z0-9._-]+")
+
+
+def descargar_original(object_name: str) -> tuple[bytes, str]:
+    """
+    Devuelve (contenido, content_type) del original en BktRecibidos.
+    Solo acepta rutas con el formato que genera subir_documento_crudo, para no exponer otros objetos.
+    """
+    if not isinstance(object_name, str) or PATRON_ORIGINAL.fullmatch(object_name) is None:
+        raise ValueError("Ruta de objeto inválida.")
+    cliente, namespace = _get_cliente()
+    respuesta = cliente.get_object(namespace, BUCKET_RECIBIDOS, object_name)
+    tipo = respuesta.headers.get("content-type") or mimetypes.guess_type(object_name)[0] or "application/octet-stream"
+    logger.info("DESCARGA ORIGINAL | objeto=%s", object_name)
+    return respuesta.data.content, tipo
+
+
+def registrar_revision(doc_id: str, fecha: str, revision: dict) -> dict:
+    """
+    Cierra el ciclo Human-in-the-Loop en OCI: toma el JSON de BktAuditoria-humana, le agrega la
+    revisión y lo deja en BktProcesados (aprobado/corregido) o lo marca como rechazado en auditoría.
+    """
+    if str(uuid.UUID(doc_id)) != doc_id or re.fullmatch(r"\d{4}/\d{2}/\d{2}", fecha or "") is None:
+        raise ValueError("doc_id o fecha inválidos.")
+    objeto = f"estructurados/{fecha}/{doc_id}.json"
+    cliente, namespace = _get_cliente()
+    actual = _leer_si_existe(cliente, namespace, BUCKET_AUDITORIA, objeto)
+    if actual is None:
+        raise ValueError("El documento no está pendiente en BktAuditoria-humana.")
+    datos = json.loads(actual.data.content)
+    datos["revision_humana"] = revision
+    contenido = json.dumps(datos, ensure_ascii=False, indent=2).encode("utf-8")
+    rechazado = revision.get("decision") == "rechazado"
+    bucket = BUCKET_AUDITORIA if rechazado else BUCKET_PROCESADOS
+    destino = f"rechazados/{fecha}/{doc_id}.json" if rechazado else objeto
+    cliente.put_object(
+        namespace, bucket, destino, contenido,
+        content_type="application/json; charset=utf-8",
+        opc_meta={"doc-id": doc_id, "estado": "rechazado" if rechazado else "revisado"},
+    )
+    cliente.delete_object(namespace, BUCKET_AUDITORIA, objeto)
+    logger.info("REVISION OK | doc_id=%s | decision=%s | destino=%s/%s", doc_id, revision.get("decision"), bucket, destino)
+    return {"bucket": bucket, "ruta_objeto": destino, "status_backup": "exito"}
+
+
 def listar_recibidos(limite: int = 20) -> list[str]:
     """Devuelve hasta limite nombres de objetos (no ordenados por fecha de subida)."""
     cliente, namespace = _get_cliente()

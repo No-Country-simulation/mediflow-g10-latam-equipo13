@@ -13,11 +13,29 @@ API de backend para el análisis de documentos del proyecto MediFlow. Desarrolla
 
 ## Funcionalidades
 
-- Recepción de documentos para su análisis.
-- Almacenamiento de documentos originales en OCI Object Storage.
-- Clasificación documental mediante Google Gemini.
-- Exposición de endpoints HTTP para la integración con otros servicios de MediFlow.
+- Recepción de documentos (PDF, imagen o texto) y de texto en JSON con el formato del brief.
+- Almacenamiento del original y del resultado en OCI Object Storage, enrutado por estado.
+- **Agente de triaje con LangGraph**: extracción con Gemini, validación clínica, score de confianza, detección de
+  urgencias, enrutamiento condicional, alertas y persistencia. Cada paso queda en la `traza` de la respuesta.
+- Reglas configurables por petición (umbral, términos de urgencia y destinos) que envía la API principal.
+- Cierre del ciclo Human-in-the-Loop en OCI y descarga del original para el visor.
 - Ejecución en contenedores Docker.
+
+## Agente de triaje
+
+| Archivo | Contenido |
+|---|---|
+| `agente/grafo.py` | Grafo LangGraph: `extraer → validar → evaluar_confianza → detectar_urgencia → ruta_* → notificar → persistir` |
+| `agente/reglas.py` | Reglas deterministas: categorías, destinos, umbral (0.60), términos de urgencia, medicamentos de alto riesgo, penalizaciones |
+| `agente/escenarios_demo.py` | Los 3 escenarios del brief con respuestas de IA simuladas (pruebas y `/demo`) |
+| `clasificador/clasificador_multimodal.py` | Cliente de Gemini (archivo o texto), reintentos ante 503/429, sin registrar datos clínicos |
+| `clasificador/adaptador.py` | Normaliza la respuesta de Gemini (variantes de claves, placeholders, edades) |
+| `modelos.py` | Modelos Pydantic de entrada y salida |
+| `notificaciones.py` | Alerta por webhook (Slack, Discord o n8n) |
+
+La IA extrae y opina (confianza, prioridad, hallazgos, ambigüedades); las reglas deciden: una confianza final bajo el
+umbral, una ambigüedad o un medicamento de alto riesgo mandan el documento a `Cola_Revision_Humana`; un caso urgente
+va a `Cola_Emergencia_Medica` y genera la alerta; el resto sigue el destino de su tipo.
 
 ## Requisitos
 
@@ -59,8 +77,13 @@ Variables de entorno utilizadas por la configuración actual:
 | Variable | Descripción |
 |---|---|
 | `GEMINI_API_KEY` | Clave de acceso a Google Gemini. |
-| `OCI_CONFIG_FILE` | Ruta del archivo de configuración de OCI dentro del contenedor. |
+| `GEMINI_MODEL` | Modelo de Gemini (por defecto `gemini-3.8-flash`). |
+| `OCI_CONFIG_FILE` | Ruta del archivo de configuración de OCI dentro del contenedor. Si no existe, se omite OCI. |
 | `OCI_PROFILE` | Perfil de OCI. La configuración utilizada en el entorno de MediFlow usa `MediFlowBackend`. |
+| `OCI_DESHABILITADO` | `true` para no usar OCI aunque haya configuración (pruebas). |
+| `ALERTA_WEBHOOK_URL` | Webhook para avisar los casos urgentes (opcional). |
+| `ALERTA_INCLUIR_PACIENTE` | `true` para incluir el nombre del paciente en el aviso (por defecto no). |
+| `CORS_ORIGINS` | Orígenes permitidos para el modo Directo sin proxy. |
 
 Ejemplo para PowerShell, suponiendo que el directorio privado de OCI está disponible en `C:\RUTA\PRIVADA\OCI`:
 
@@ -79,13 +102,31 @@ Antes de ejecutar el comando, configura `GEMINI_API_KEY` de forma segura en tu s
 
 No publiques credenciales, archivos `.env`, claves privadas ni configuraciones reales en GitHub o Docker Hub.
 
-## Endpoint de análisis
+## Endpoints
 
-### `POST /analizar`
+| Método y ruta | Descripción |
+|---|---|
+| `POST /analizar` | Multipart: `archivo` (PDF, imagen, `.txt` o `.json`), `canal_origen` y `config` (JSON) opcionales |
+| `POST /analizar-texto` | JSON: `documento_texto`, `documento_id`, `tipo_archivo`, `canal_origen`, `config` |
+| `GET /demo/{rutina\|urgencia\|ambiguo}` | El grafo real con una respuesta de IA simulada (sin Gemini ni OCI) |
+| `GET /grafo` | Diagrama Mermaid del grafo, generado por LangGraph |
+| `GET /reglas` | Reglas por defecto del agente |
+| `GET /salud` | Qué está configurado (sin exponer secretos) |
+| `GET /documentos/original?ruta=` | Original guardado en `BktRecibidos` |
+| `POST /documentos/revision` | Decisión del auditor: mueve el JSON de `BktAuditoria-humana` a `BktProcesados` |
 
-Recibe un documento e inicia el flujo de análisis, que incluye el almacenamiento del archivo original en OCI y la clasificación mediante Gemini.
+La respuesta sigue el formato del ejemplo del brief (`clasificacion`, `datos_extraidos`, `decision_enrutamiento`,
+`almacenamiento_oci`) y agrega `validacion` y `traza`. El detalle está en `/docs`.
 
-Consulta `/docs` en la instancia en ejecución para verificar el formato exacto de la petición, el campo multipart requerido, los parámetros y las respuestas.
+## Pruebas
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
+```
+
+Cubren las reglas, el grafo con los 3 escenarios, el normalizador, la API y la integración con OCI (simulada).
+No llaman a Gemini ni a OCI.
 
 ## Comprobación del servicio
 
@@ -112,9 +153,9 @@ El almacenamiento exitoso de un documento en OCI no garantiza que la clasificaci
 
 ## Estado de la versión
 
-La imagen Docker `tinocpp/mediflow-fastapi:1.0.1` fue publicada y se comprobó que el contenedor inicia y responde en la ruta raíz.
-
-Esta comprobación no representa una validación completa de todos los escenarios de análisis ni una auditoría integral de seguridad.
+- `2.0.0` (este código): agente con LangGraph, `/analizar-texto`, revisión en OCI, alertas y pruebas automáticas.
+  Se construye con `docker compose build fastapi` desde la raíz del repositorio.
+- `1.0.1`: imagen publicada `tinocpp/mediflow-fastapi:1.0.1` (clasificación directa con Gemini y enrutamiento a OCI).
 
 ## Seguridad
 
