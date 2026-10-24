@@ -75,7 +75,8 @@ export default function UsuariosPage() {
     setGuardandoId(u.id);
     try {
       const resp = await springApi.cambiarRolUsuario(u.id, rol);
-      setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, ...(resp ?? {}), rol } : x)));
+      void resp; // el servidor confirmó el cambio: se refleja solo el rol pedido
+      setUsuarios((prev) => prev.map((x) => (x.id === u.id ? { ...x, rol } : x)));
       success('Rol actualizado', `${u.nombre} ahora es ${rolMeta(rol).label}.`);
     } catch (e) {
       toastError('No se pudo cambiar el rol', mensajeError(e, 'Intenta de nuevo.'));
@@ -92,7 +93,7 @@ export default function UsuariosPage() {
   };
 
   const motivoBloqueo = (u: Usuario): string | null => {
-    if (user && u.id === user.id) return 'No puedes cambiar tu propio rol';
+    if (user && (u.id === user.id || u.nombre === user.nombre)) return 'No puedes cambiar tu propio rol';
     if (u.rol === 'ADMIN' && conteo.ADMIN <= 1) return 'Debe quedar al menos un administrador';
     return null;
   };
@@ -208,7 +209,7 @@ export default function UsuariosPage() {
                               <div className="min-w-0">
                                 <p className="font-medium text-neutral-900 truncate flex items-center gap-2">
                                   {u.nombre}
-                                  {user && u.id === user.id && <Badge variant="neutral" size="xs">Tú</Badge>}
+                                  {user && (u.id === user.id || u.nombre === user.nombre) && <Badge variant="neutral" size="xs">Tú</Badge>}
                                 </p>
                                 <p className="text-xs text-neutral-500 truncate">ID {u.id}</p>
                               </div>
@@ -234,7 +235,7 @@ export default function UsuariosPage() {
                             )}
                           </td>
                           <td className="px-5 py-3 text-neutral-500 whitespace-nowrap">
-                            {u.fechaCreacion ? new Date(u.fechaCreacion).toLocaleDateString('es-CO') : '—'}
+                            {(u.fechaCreacion ?? u.fechaRegistro) ? new Date((u.fechaCreacion ?? u.fechaRegistro) as string).toLocaleDateString('es-CO') : '—'}
                           </td>
                         </tr>
                       );

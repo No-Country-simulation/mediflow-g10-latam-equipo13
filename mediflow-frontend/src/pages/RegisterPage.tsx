@@ -149,19 +149,6 @@ export default function RegisterPage() {
               disabled={loading}
             />
 
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                id="terminos"
-                required
-                className="mt-1 w-4 h-4 rounded border-neutral-300 text-brand-500 focus:ring-brand-500/30 focus:ring-2"
-              />
-              <label htmlFor="terminos" className="text-sm text-neutral-600">
-                Acepto los <Link to="/terminos" className="text-brand-600 hover:underline">Términos y Condiciones</Link> y la{' '}
-                <Link to="/privacidad" className="text-brand-600 hover:underline">Política de Privacidad</Link>
-              </label>
-            </div>
-
             <Button type="submit" className="w-full" size="lg" loading={loading} leftIcon={<CheckCircle2 className="w-5 h-5" />}>
               Crear cuenta
             </Button>

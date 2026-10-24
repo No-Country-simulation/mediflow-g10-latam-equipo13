@@ -15,6 +15,7 @@ import {
 import { Card, Badge, Button, Dropdown, Skeleton, Progress, Input } from '../components/ui';
 import { cn } from '../lib/design-system';
 import { springApi, fastApi, fastapiToUnificado, springToUnificado, type DocumentoUnificado } from '../lib/api';
+import { exportarHistorialCsv } from '../lib/exportar';
 
 const etiquetaStatus: Record<string, string> = {
   procesado: 'Procesado',
@@ -179,7 +180,13 @@ export default function HistorialPage() {
           <p className="text-neutral-500 text-sm mt-0.5">Todos los documentos procesados por el agente con filtros avanzados</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" leftIcon={<Download className="w-4 h-4" />}>
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<Download className="w-4 h-4" />}
+            onClick={() => exportarHistorialCsv(filtrados)}
+            disabled={filtrados.length === 0}
+          >
             Exportar CSV
           </Button>
         </div>

@@ -1,105 +1,114 @@
-# Contrato que espera el frontend
+# Contrato frontend ↔ backend (rutas reales de Spring Boot)
 
-## GET /api/documentos/findall (Spring)
-Además de `id, documentoId, tipo, contenido, especialidad, score, nombreMedico, prioridad, usuarioId, fechaRegistro`,
-cada documento debe incluir estos campos (opcionales; sin ellos el panel de auditoría queda vacío):
+Rutas confirmadas en el código de `Back-End/MediFlow` (controladores y `SecurityConfig`). El frontend ya las usa.
 
+## Autenticación (públicas)
+| Ruta | Uso |
+|---|---|
+| `POST /api/auth/login` | Body `{ "name", "password" }`. Devuelve el JWT. |
+| `POST /api/user/register` | Crea la cuenta con rol `NO_ASIGNADO`. El frontend envía `{ "nombre", "name", "password" }` e inicia sesión a continuación. |
+
+Errores: el backend responde `{ codigo, mensaje, status, path, timestamp, detalles }`; el frontend muestra `mensaje`.
+
+**Sesión:** el rol y el usuario se leen de la respuesta del login o, si no vienen, de los datos del JWT (`sub` y `roles`/`rol`).
+No hay endpoint "mi perfil", así que el rol que ve la persona es el que tenía al iniciar sesión: tras un cambio de rol debe
+volver a iniciar sesión.
+
+## Usuarios y roles (solo ADMIN)
+| Ruta | Uso en el frontend |
+|---|---|
+| `GET /api/user/findAll` | Lista de usuarios (lista simple o página) |
+| `PATCH /api/user/{id}/rol/{rol}` | Cambia el rol (`ADMIN`, `AUDITOR`, `PERSONAL`, `NO_ASIGNADO`) |
+
+## Documentos
+| Ruta | Uso en el frontend |
+|---|---|
+| `POST /api/documentos/analyze/file` | Subida del archivo (campo `archivo`). Roles ADMIN, PERSONAL y AUDITOR |
+| `GET /api/documentos/findall` | Lista para Inicio, Colas, Historial y Auditoría (lista simple o página) |
+| `GET /api/documentos/findbyid/{id}` | Detalle |
+
+El texto pegado se envía como archivo `.txt` a `analyze/file` (no existe endpoint de texto).
+
+### JSON real de cada documento (`DocumentosResponse`, imagen `jm29r/mediflow-backend:1.0.1`)
+Confirmado en las clases compiladas de la imagen (no hay estrategia de nombres de Jackson configurada). Son 13 campos y
+cualquiera puede venir en `null`. `findall` devuelve una lista simple, sin paginar.
+
+| Campo | Tipo | Qué trae | Cómo lo usa el frontend |
+|---|---|---|---|
+| `id` | número | id de la tabla | Identificador |
+| `status` | texto | `procesado` o `pendiente_revision_humana` (lo decide FastAPI) | `pendiente_revision_humana` → "en revisión" |
+| `tipo` | texto | tipo de documento según la IA (o `SIN CLASIFICAR`) | Tal cual |
+| `contenido` | texto | texto que la IA leyó del documento | Tal cual |
+| `especialidad` | texto | especialidad (o `SIN ESPECIALIDAD`) | Tal cual |
+| `prioridad` | texto | `Rutina` o `Urgente` (o `SIN PRIORIDAD`) | Todo lo que no diga "urgente" se trata como Rutina |
+| `documentoId` | texto | UUID del original en OCI | Ruta del detalle |
+| `fechaRegistro`, `fechaActualizacion` | texto | `LocalDateTime` **sin zona horaria** | Se lee como UTC (ver errores) |
+| `score` | número | confianza estimada por la IA (0 a 1) | Confianza |
+| `requiereAuditoria` | booleano | lo decide la IA | Manda el documento a Auditoría |
+| `colaEnruatamiento` | texto | cola que eligió la IA (texto libre) | Destino. **Ojo: el nombre tiene una errata** |
+| `nombreMedico` | texto | **el nombre del usuario que subió el documento** | No se usa (ver errores) |
+
+No existen `usuarioId` ni los datos extraídos (paciente, médico, diagnóstico, CIE-10). En modo Persistente la ficha de datos
+extraídos sale vacía; en modo Directo (FastAPI) sí se ven.
+
+### 🚨 Bloqueante: el modo Persistente no funciona (`POST /api/documentos/analyze/file` → 500)
+Toda subida a Spring responde `500 INTERNAL_ERROR` ("Ocurrió un error inesperado") y nunca llega a FastAPI. El modo Directo
+sí funciona porque no pasa por Spring. Sin esto no hay documentos en Colas, Historial ni Auditoría.
+
+- **Causa:** `AIClient.java` (línea 45) usa `org.springframework.http.client.MultipartBodyBuilder`, una clase de WebFlux que
+  necesita la librería `reactive-streams`. El proyecto solo tiene `spring-boot-starter-webmvc`, así que al ejecutarse lanza
+  `java.lang.NoClassDefFoundError: org/reactivestreams/Publisher`. Se reprodujo con las clases y librerías de la imagen
+  1.0.1, y el código de `main` tiene el mismo problema.
+- **Por qué no aparece en el log:** `GlobalExceptionHandler.handleGeneric` tiene el `log.error(...)` comentado.
+- **Solución (cualquiera de las dos):**
+  1. Armar el multipart sin `MultipartBodyBuilder` (recomendada, no agrega dependencias; probada con las librerías de la imagen):
+     ```java
+     HttpHeaders cabeceras = new HttpHeaders();
+     cabeceras.setContentType(archivo.getContentType() != null
+             ? MediaType.parseMediaType(archivo.getContentType()) : MediaType.APPLICATION_OCTET_STREAM);
+     cabeceras.setContentDispositionFormData("archivo", archivo.getOriginalFilename());
+     MultiValueMap<String, Object> partes = new LinkedMultiValueMap<>();
+     partes.add("archivo", new HttpEntity<>(archivo.getResource(), cabeceras));
+     // ... .contentType(MediaType.MULTIPART_FORM_DATA).body(partes) ...
+     ```
+  2. O agregar al `pom.xml` la dependencia `org.reactivestreams:reactive-streams` (la versión la maneja Spring Boot).
+- **Además:** descomentar el `log.error("Error inesperado", ex)` del manejador genérico, y publicar una imagen nueva (1.0.2).
+
+### Errores del backend encontrados (para el equipo de backend)
+1. **Errata en `DocumentosResponse`:** el campo se llama `colaEnruatamiento`. Lo correcto es `colaEnrutamiento`. El frontend lee
+   los dos nombres, así que corregirlo no rompe nada.
+2. **`nombreMedico` no trae al médico.** En la imagen 1.0.1 trae el nombre del usuario que subió el documento. En el código de
+   `main` (commit `9d90d2a`) tampoco sirve: `DocumentosDTOMapper.toResponse`, línea 58, pasa `getDocumentoId()` donde va
+   `getNombreMedico()`. Además, la imagen 1.0.1 no incluye la migración V5 (`nombre_medico`). Mientras no se corrija, el
+   frontend no muestra ese campo como médico.
+3. **Fechas sin zona horaria:** `LocalDateTime.now()` se guarda en la hora del contenedor (UTC) y se envía sin zona. El
+   frontend las interpreta como UTC. Si Spring corre fuera de Docker con otra zona horaria, las horas saldrán corridas.
+   Propuesta: usar `Instant` u `OffsetDateTime` para que el JSON lleve la zona (por ejemplo `2026-10-24T03:52:23Z`).
+
+## Lo que falta en el backend (el frontend ya lo contempla y avisa si no existe)
+| Falta | Efecto hoy |
+|---|---|
+| `PATCH /api/documentos/{id}/revision` (aprobar, corregir o rechazar) | Auditoría muestra "falta el endpoint de revisión" |
+| `GET /api/documentos/{id}/archivo` (archivo original) | El visor avisa que el servidor no lo entrega |
+| Datos del paciente en `documentos` (nombre, RUT, edad), médico, diagnóstico, CIE-10, medicamentos | La ficha de datos extraídos sale vacía |
+| `notificacion` de urgencia | No se muestra la alerta |
+| Respuesta 401 (hoy 500 `INTERNAL_ERROR`) para credenciales incorrectas | El mensaje del login es genérico |
+| Migración V5 con `nombre_medico` y el mapper corregido (ver "Errores del backend", punto 2) | El médico no aparece en modo Persistente |
+
+### Cuerpo esperado del `PATCH /api/documentos/{id}/revision`
 ```json
-{
-  "status": "procesado | en_revision | error",
-  "requiereAuditoria": true,
-  "destino": "Cola_Revision_Humana",
-  "justificacion": "Confianza menor al umbral",
-  "nombrePaciente": "...", "rutPaciente": "...", "edadPaciente": 44,
-  "matricula": "...", "estudioRealizado": "...",
-  "diagnosticoPrincipal": "...", "cie10Sugerido": "...",
-  "medicamentos": [{ "nombre": "...", "dosis": "...", "frecuencia": "...", "via": "...", "duracion": "..." }],
-  "notificacion": { "canal": "Alerta_Guardia_Medica", "mensaje": "..." },
-  "revision": null
-}
+{ "decision": "aprobado | corregido | rechazado", "comentario": "...", "revisor": "...",
+  "datosCorregidos": { "nombrePaciente": "", "rutPaciente": "", "edadPaciente": 0, "nombreMedico": "", "matricula": "",
+                       "estudioRealizado": "", "diagnosticoPrincipal": "", "cie10Sugerido": "", "prioridad": "Rutina | Urgente" } }
 ```
+Debe guardar la revisión y poner `requiereAuditoria = false`.
 
-## PATCH /api/documentos/{id}/revision (Spring) — nuevo
-```json
-{
-  "decision": "aprobado | corregido | rechazado",
-  "comentario": "obligatorio si es rechazado",
-  "revisor": "Nombre del auditor",
-  "datosCorregidos": {
-    "nombrePaciente": "", "rutPaciente": "", "edadPaciente": 0, "nombreMedico": "", "matricula": "",
-    "estudioRealizado": "", "diagnosticoPrincipal": "", "cie10Sugerido": "", "prioridad": "Rutina | Urgente"
-  }
-}
-```
-Responde con el documento actualizado (200) o 204. Debe guardar `revision { decision, comentario, revisor, fecha }`
-y poner `requiereAuditoria = false`.
-
-## PUT /api/v1/configuracion (FastAPI) — opcional
-Recibe `{ umbralConfianza, palabrasUrgencia[], destinos[] }`. Si no existe, la configuración queda en el navegador
-y el agente no la usa (la pantalla lo avisa).
-
-## POST /analizar-texto (FastAPI)
-Body: `{ "texto", "documento_texto", "tipo_archivo": "TEXTO", "canal_origen" }`.
-
-## Roles
-`POST /api/auth/register` crea usuarios sin rol (NO_ASIGNADO). El registro ya no deja elegir rol: antes cualquiera
-podía registrarse como ADMIN. Falta un endpoint para que un ADMIN asigne roles.
-
-
----
-
-# Para el equipo de FastAPI (lo que el frontend necesita y hoy no existe)
-
-1. **CORS.** Permitir el origen `http://localhost:5173` (`CORSMiddleware`). Sin esto el navegador bloquea las llamadas directas al motor de IA.
-2. **`POST /analizar`** debería devolver, además de lo actual, `decision_enrutamiento`
-   (`destino_principal`, `requiere_auditoria_humana`, `justificacion_enrutamiento`, `notificacion_generada`)
-   y `almacenamiento_oci` (`bucket`, `ruta_objeto`, `status_backup`). Hoy el `response_model` los elimina.
-   Mientras no existan, el frontend muestra "Sin destino asignado" y no marca auditoría.
-3. **`POST /analizar-texto`** con `{ "texto", "documento_texto", "tipo_archivo", "canal_origen" }`. Hoy no existe: la pestaña "Pegar texto" en modo directo mostrará un aviso.
-4. `status` debería ser `en_revision` cuando la confianza sea menor al umbral (hoy siempre dice `procesado`).
-5. `datos_extraidos.medicamentos` (lista) para mostrar recetas completas.
-
----
-
-# Usuarios y roles (pantalla `/usuarios`, solo ADMIN)
-
-## GET /api/usuarios?page=0&size=200
-Devuelve la lista de usuarios, paginada (`{ "content": [...] }`) o como arreglo simple. Cada usuario:
-```json
-{ "id": 1, "nombre": "ana.perez", "rol": "NO_ASIGNADO", "activo": true, "fechaCreacion": "2026-10-11T14:00:00" }
-```
-
-## PATCH /api/usuarios/{id}/rol
-Body: `{ "rol": "ADMIN | AUDITOR | PERSONAL | NO_ASIGNADO" }`. Responde con el usuario actualizado (200) o 204.
-
-Reglas que debe validar el servidor (el frontend solo las refleja en pantalla):
-- Solo un ADMIN puede usar estos dos endpoints.
-- Un ADMIN no puede cambiar su propio rol ni dejar el sistema sin administradores.
-
-# Archivo original (visor en `/auditoria`)
-
-## GET /api/documentos/{id}/archivo
-Devuelve el archivo original que se subió (PDF, PNG o JPG) con su `Content-Type`. El frontend lo pide con el
-header `Authorization: Bearer <token>` y lo muestra en pantalla; si el `Content-Type` es genérico
-(`application/octet-stream`) lo detecta por los primeros bytes.
-- 404 si el documento no tiene archivo guardado (el visor lo avisa y ofrece ver el texto extraído).
-- Solo ADMIN y AUDITOR deberían poder pedirlo: son documentos clínicos.
-- El archivo debe guardarse al procesar (por ejemplo en el bucket de OCI) para poder devolverlo después.
-
-
----
-
-# Autenticación por nombre de usuario (sin correo)
-
-Decisión del equipo: se inicia sesión con **nombre de usuario y contraseña**. El frontend ya no usa correo.
-
-## POST /api/auth/login
-Body: `{ "name": "ana.perez", "password": "Clave123" }`
-Respuesta: `{ "token": "...", "tipo": "Bearer", "usuario": { "id", "nombre", "rol", "activo", "fechaCreacion" } }`
-Credenciales incorrectas: 401 (idealmente con `{ "message": "..." }`).
-
-## POST /api/auth/register
-Body: `{ "nombre": "ana.perez", "name": "ana.perez", "password": "Clave123" }`
-El frontend manda el nombre en los dos campos (`nombre` y `name`) hasta que se confirme cuál usa el registro; Spring puede ignorar el que no necesite.
-- El nombre de usuario debe ser **único**: si ya existe, responder 409 (o 400) con un `message` claro.
-- El rol nuevo debe quedar en `NO_ASIGNADO` (el registro no deja elegir rol).
+## FastAPI (imagen `tinocpp/mediflow-fastapi:1.0.1`)
+- `POST /analizar` con el campo `archivo` (usado en el modo "Directo").
+- Respuesta: `status` (`procesado` o `pendiente_revision_humana`), `documento_id` (UUID del original en OCI), `contenido`,
+  `clasificacion` y `datos_extraidos`. `requiere_auditoria_humana` y `cola_enrutamiento` vienen **dentro de `clasificacion`**
+  (no hay `decision_enrutamiento`, `justificacion` ni `medicamentos`). Los datos que faltan llegan como `SIN NOMBRE`,
+  `SIN RUT`, `SIN MATRICULA`, `SIN DEFINIR`, etc.
+- Errores: `detail` puede ser un objeto `{ mensaje, etapa, documento_id }`; el frontend muestra `mensaje`.
+- El modo directo desde el navegador necesita CORS para `http://localhost:5173`, o usar el proxy de Vite.
+- Hoy no existe `/analizar-texto`: el frontend envía el texto como archivo `.txt`.

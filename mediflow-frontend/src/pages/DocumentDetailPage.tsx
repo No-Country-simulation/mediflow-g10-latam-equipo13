@@ -23,6 +23,7 @@ import {
 import { Badge, Button, Card, Modal, Progress, Tabs } from '../components/ui';
 import { mensajeError, obtenerDocumentoUnificado, useAuth, type DocumentoUnificado } from '../lib/api';
 import { cargarConfig } from '../lib/triageConfig';
+import { descargarArchivo } from '../lib/exportar';
 
 const decisionLabel = {
   aprobado: { label: 'Aprobado', variant: 'success' as const },
@@ -96,15 +97,8 @@ export default function DocumentDetailPage() {
     ? { variant: 'danger' as const, Icon: XCircle, label: doc.revision ? 'Rechazado' : 'Error' }
     : { variant: 'success' as const, Icon: CheckCircle2, label: doc.revision ? 'Revisado' : 'Procesado' };
 
-  const descargar = () => {
-    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `documento-${doc.documentoId}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const descargar = () =>
+    descargarArchivo(`documento-${doc.documentoId}.json`, JSON.stringify(doc, null, 2), 'application/json');
 
   const tabs = [
     {
@@ -351,7 +345,7 @@ export default function DocumentDetailPage() {
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-success-50 text-success-600 flex items-center justify-center"><CheckCircle2 className="w-6 h-6" /></div>
             <div>
-              <p className="text-sm text-neutral-500">Confianza</p>
+              <p className="text-sm text-neutral-500" title="Estimación del modelo de IA, no una probabilidad exacta">Confianza (estimada por IA)</p>
               <div className="flex items-center gap-2">
                 <Progress value={scorePct} size="sm" className="w-24" variant={doc.scoreConfianza >= 0.8 ? 'success' : doc.scoreConfianza >= umbral ? 'warning' : 'danger'} />
                 <span className="font-semibold tabular-nums">{scorePct}%</span>

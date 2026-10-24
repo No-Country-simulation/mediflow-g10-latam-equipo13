@@ -23,6 +23,7 @@ import {
 } from '../components/ui';
 import { cn } from '../lib/design-system';
 import { springApi, fastApi, fastapiToUnificado, springToUnificado, type DocumentoUnificado } from '../lib/api';
+import { exportarHistorialJson } from '../lib/exportar';
 
 const priorityColors = {
   Urgente: 'danger',
@@ -192,8 +193,14 @@ export default function DashboardPage() {
               { label: 'Últimos 30 días', onClick: () => setTimeRange('30d') },
             ]}
           />
-          <Button variant="outline" size="sm" leftIcon={<Download className="w-4 h-4" />} onClick={() => {}}>
-            Exportar
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<Download className="w-4 h-4" />}
+            onClick={() => exportarHistorialJson(documentos)}
+            disabled={documentos.length === 0}
+          >
+            Exportar JSON
           </Button>
           <Button variant="outline" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={handleRefresh} loading={refreshing}>
             Actualizar
