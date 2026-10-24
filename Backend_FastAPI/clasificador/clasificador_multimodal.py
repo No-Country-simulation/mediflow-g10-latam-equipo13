@@ -17,7 +17,9 @@ from agente.reglas import CATEGORIAS
 logger = logging.getLogger("mediflow.ia")
 
 MODELO = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
-MAX_INTENTOS = 3
+# Ante saturación de Gemini (503/429) se reintenta con esperas crecientes: ~50 s en total.
+ESPERAS_REINTENTO = (5, 15, 30)
+MAX_INTENTOS = len(ESPERAS_REINTENTO) + 1
 
 PROMPT = f"""
 Actúas como el motor de extracción de documentos clínicos de MediFlow.
@@ -77,7 +79,12 @@ def _generar(cliente, contenido) -> dict | None:
             respuesta = cliente.models.generate_content(
                 model=MODELO,
                 contents=contenido,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                    # No se usan herramientas: se desactiva la llamada automática de funciones.
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                ),
             )
             datos = json.loads(respuesta.text)
             if isinstance(datos, list) and datos:
@@ -85,7 +92,7 @@ def _generar(cliente, contenido) -> dict | None:
             return datos if isinstance(datos, dict) else None
         except Exception as error:  # noqa: BLE001 - se informa el tipo, nunca el contenido
             if _es_transitorio(error) and intento < MAX_INTENTOS:
-                espera = 4 * 2 ** (intento - 1)
+                espera = ESPERAS_REINTENTO[intento - 1]
                 logger.warning("Gemini saturado (intento %d/%d); reintento en %ds", intento, MAX_INTENTOS, espera)
                 time.sleep(espera)
                 continue

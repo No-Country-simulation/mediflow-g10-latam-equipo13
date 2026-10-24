@@ -15,8 +15,8 @@ public class RestClientConfig {
     @Value("${python.connect-timeout:5s}")
     private Duration connectTimeout = Duration.ofSeconds(5);
 
-    @Value("${python.read-timeout:180s}")
-    private Duration readTimeout = Duration.ofSeconds(180);
+    @Value("${python.read-timeout:300s}")
+    private Duration readTimeout = Duration.ofSeconds(300);
 
     @Bean
     public RestClient.Builder restClientBuilder() {

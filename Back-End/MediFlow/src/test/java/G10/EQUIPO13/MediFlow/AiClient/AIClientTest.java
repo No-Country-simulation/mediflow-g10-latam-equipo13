@@ -17,6 +17,14 @@ class AIClientTest {
     }
 
     @Test
+    void esTimeout_detectaElPlazoAgotadoEnCualquierNivel() {
+        var timeout = new org.springframework.web.client.RestClientException("Error while extracting response",
+                new java.io.IOException("lectura", new java.net.SocketTimeoutException("Read timed out")));
+        assertTrue(AIClient.esTimeout(timeout));
+        assertFalse(AIClient.esTimeout(new org.springframework.web.client.RestClientException("otro error")));
+    }
+
+    @Test
     void nombreSeguro_dejaSoloCaracteresPermitidos() {
         assertEquals("receta_m_dica__1_.pdf", AIClient.nombreSeguro("receta médica (1).pdf"));
         assertEquals("documento", AIClient.nombreSeguro(null));

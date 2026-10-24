@@ -125,6 +125,9 @@ public class AIClient {
             }
             return resultado;
         } catch (ResourceAccessException e) {
+            if (esTimeout(e)) {
+                throw tiempoAgotado(operacion, e);
+            }
             log.error("IA no disponible al {}: {}", operacion, e.getClass().getSimpleName());
             throw new AIClientException("No se pudo conectar con el servicio de IA. Verifica que FastAPI esté encendido.", 503, e);
         } catch (HttpStatusCodeException e) {
@@ -134,9 +137,28 @@ public class AIClient {
             int estadoCliente = status == 503 ? 503 : status >= 400 && status < 500 ? status : 502;
             throw new AIClientException(mensaje != null ? mensaje : "El servicio de IA respondió con error " + status + ".", estadoCliente, e);
         } catch (RestClientException e) {
+            if (esTimeout(e)) {
+                throw tiempoAgotado(operacion, e);
+            }
             log.error("Error al {}: {}", operacion, e.getClass().getSimpleName());
             throw new AIClientException("No se pudo interpretar la respuesta del servicio de IA.", 502, e);
         }
+    }
+
+    /** El plazo de lectura se puede agotar al recibir la respuesta o al leer su cuerpo. */
+    static boolean esTimeout(Throwable e) {
+        for (Throwable causa = e; causa != null; causa = causa.getCause()) {
+            if (causa instanceof java.net.SocketTimeoutException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static AIClientException tiempoAgotado(String operacion, Exception e) {
+        log.error("La IA no respondió a tiempo al {}", operacion);
+        return new AIClientException(
+                "El análisis tardó más de lo esperado (la IA está lenta o saturada). Intenta de nuevo en unos minutos.", 504, e);
     }
 
     /** FastAPI devuelve {"detail": "..."} o {"detail": {"mensaje": "..."}}. */
