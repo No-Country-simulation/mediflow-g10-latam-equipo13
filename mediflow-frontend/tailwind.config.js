@@ -25,6 +25,7 @@ export default {
       colors: {
         // Brand colors
         brand: colors.brand,
+        aqua: colors.aqua,
         // Semantic colors
         success: colors.success,
         warning: colors.warning,
@@ -35,7 +36,7 @@ export default {
         info: colors.info,
         // Neutrals
         neutral: colors.neutral,
-        ink: colors.neutral[1000],
+        ink: colors.ink,
         paper: colors.neutral[50],
         // Dark mode
         dark: colors.dark,
@@ -61,8 +62,30 @@ export default {
         shimmer: 'shimmer 2s linear infinite',
         float: 'float 3s ease-in-out infinite',
         wiggle: 'wiggle 1s ease-in-out infinite',
+        // Firma visual: la luz que recorre el grafo del agente y el pulso de lo que está "vivo".
+        flow: 'flow 1.2s linear infinite',
+        'float-slow': 'floatSlow 7s ease-in-out infinite',
+        'pulse-ring': 'pulseRing 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite',
+        scan: 'scan 2.4s ease-in-out infinite',
+        sweep: 'sweep 1.6s ease-in-out infinite',
+        aurora: 'aurora 18s ease-in-out infinite alternate',
+        'spin-slow': 'spin 14s linear infinite',
       },
-      keyframes,
+      keyframes: {
+        ...keyframes,
+        flow: { to: { strokeDashoffset: '-24' } },
+        floatSlow: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+        pulseRing: {
+          '0%': { transform: 'scale(0.8)', opacity: '0.7' },
+          '80%, 100%': { transform: 'scale(2.2)', opacity: '0' },
+        },
+        scan: { '0%, 100%': { transform: 'translateY(-6%)' }, '50%': { transform: 'translateY(96%)' } },
+        sweep: { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(300%)' } },
+        aurora: {
+          '0%': { transform: 'translate3d(-6%, -4%, 0) rotate(0deg) scale(1)' },
+          '100%': { transform: 'translate3d(6%, 4%, 0) rotate(8deg) scale(1.12)' },
+        },
+      },
       transitionDuration: animation.duration,
       transitionTimingFunction: animation.easing,
       zIndex: zIndex,
@@ -78,9 +101,11 @@ export default {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'mesh-gradient': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'mesh-gradient-2': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-        'mesh-gradient-3': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+        'aurora-line': 'linear-gradient(90deg, #5b5bf0 0%, #22b8f0 50%, #0cc4ab 100%)',
+        'aurora-soft': 'linear-gradient(135deg, rgba(91,91,240,0.12) 0%, rgba(12,196,171,0.10) 100%)',
+        'mesh-gradient': 'linear-gradient(135deg, #5b5bf0 0%, #3c37b8 100%)',
+        'mesh-gradient-2': 'linear-gradient(135deg, #f04438 0%, #b42318 100%)',
+        'mesh-gradient-3': 'linear-gradient(135deg, #22b8f0 0%, #0cc4ab 100%)',
         'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
       },
     },

@@ -23,21 +23,21 @@ const variantClasses = {
   default: 'border-b border-neutral-100',
   pills: '',
   underline: 'border-b border-neutral-100',
-  enclosed: '',
+  enclosed: 'inline-flex max-w-full overflow-x-auto scrollbar-none p-1 rounded-2xl bg-white border border-neutral-200/80 shadow-xs',
 };
 
 const tabClasses = {
   default: 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300',
   pills: 'rounded-lg bg-transparent text-neutral-500 hover:bg-neutral-100',
   underline: 'border-b-2 border-transparent text-neutral-500 hover:text-neutral-700',
-  enclosed: 'rounded-lg bg-transparent text-neutral-500 hover:bg-neutral-100',
+  enclosed: 'rounded-xl whitespace-nowrap text-neutral-500 hover:text-ink-900 hover:bg-neutral-50',
 };
 
 const activeTabClasses = {
   default: 'border-brand-500 text-brand-600',
   pills: 'bg-brand-50 text-brand-700',
   underline: 'border-brand-500 text-brand-600',
-  enclosed: 'bg-brand-50 text-brand-700 shadow-sm',
+  enclosed: 'rounded-xl whitespace-nowrap bg-ink-900 text-white shadow-sm',
 };
 
 export function Tabs({

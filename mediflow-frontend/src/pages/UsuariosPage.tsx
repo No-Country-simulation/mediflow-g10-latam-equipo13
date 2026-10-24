@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Users, Search, RefreshCw, AlertTriangle, Clock, ServerOff } from 'lucide-react';
+import { Search, RefreshCw, AlertTriangle, Clock, ServerOff } from 'lucide-react';
 import { Avatar, Badge, Button, Card, ConfirmDialog, Input, Select, SkeletonTable, useToastHelpers } from '../components/ui';
 import { mensajeError, springApi, useAuth, type Usuario } from '../lib/api';
 
@@ -99,14 +99,10 @@ export default function UsuariosPage() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6 animate-in">
+    <div className="p-6 lg:p-8 max-w-6xl mx-auto space-y-6 animate-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-neutral-950 flex items-center gap-2">
-            <Users className="w-6 h-6 text-brand-500" />
-            Usuarios y roles
-          </h1>
-          <p className="text-neutral-500 text-sm mt-0.5">Aprueba cuentas nuevas y define qué puede hacer cada persona.</p>
+          <p className="text-neutral-600 text-[15px] max-w-2xl">Aprueba cuentas nuevas y define qué puede hacer cada persona.</p>
         </div>
         <div className="flex items-center gap-3">
           {conteo.NO_ASIGNADO > 0 && (

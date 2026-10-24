@@ -7,43 +7,70 @@
 // COLORES SEMÁNTICOS
 // ============================================
 export const colors = {
-  // Brand - Azul médico confiable
+  // Brand - Índigo eléctrico: inteligencia y precisión (contraste AA con texto blanco desde el 500)
   brand: {
-    25: '#f0f4ff',
-    50: '#eef4ff',
-    100: '#dce8ff',
-    200: '#bccdff',
-    300: '#8aa0ff',
-    400: '#5c6fff',
-    500: '#2f6fed',  // Principal
-    600: '#2457c9',
-    700: '#1c46a3',
-    800: '#183882',
-    900: '#152d66',
-    950: '#0d1a3d',
+    25: '#f6f6ff',
+    50: '#eff0ff',
+    100: '#e1e3ff',
+    200: '#c8cbff',
+    300: '#a5a8ff',
+    400: '#8080fb',
+    500: '#5b5bf0',  // Principal
+    600: '#4a45dc',
+    700: '#3c37b8',
+    800: '#322f93',
+    900: '#2b2a74',
+    950: '#1a1846',
+  },
+
+  // Aqua - el "pulso" de la IA: estados en vivo, acentos y gradientes
+  aqua: {
+    50: '#ebfffb',
+    100: '#cbfff4',
+    200: '#9bfbe9',
+    300: '#5ef2d9',
+    400: '#24e0c4',
+    500: '#0cc4ab',
+    600: '#039e8c',
+    700: '#077d71',
+    800: '#0b635b',
+    900: '#0e514c',
+  },
+
+  // Tinta - superficies oscuras (landing, acceso, barra lateral)
+  ink: {
+    DEFAULT: '#0b1026',
+    600: '#2a3566',
+    700: '#1d2650',
+    800: '#141b3b',
+    900: '#0b1026',
+    950: '#060917',
   },
 
   // Semantic states
   success: {
     50: '#ecfdf3',
     100: '#d1fadf',
-    500: '#2f9e6b',
-    600: '#257a55',
-    700: '#1e6043',
+    200: '#a6f4c5',
+    500: '#12b76a',
+    600: '#039855',
+    700: '#027a48',
   },
   warning: {
-    50: '#fffbeb',
-    100: '#fef3c7',
-    500: '#e0a53f',
-    600: '#c48a32',
-    700: '#9d6d26',
+    50: '#fffaeb',
+    100: '#fef0c7',
+    200: '#fedf89',
+    500: '#f79009',
+    600: '#dc6803',
+    700: '#b54708',
   },
   danger: {
-    50: '#fef2f2',
-    100: '#fee2e2',
-    500: '#e0523f',
-    600: '#c43d2e',
-    700: '#9d2f23',
+    50: '#fef3f2',
+    100: '#fee4e2',
+    200: '#fecdca',
+    500: '#f04438',
+    600: '#d92d20',
+    700: '#b42318',
   },
   info: {
     50: '#eff6ff',
@@ -115,15 +142,17 @@ export const borderRadius = {
 
 export const shadows = {
   none: 'none',
-  xs: '0 1px 2px rgba(18,23,43,0.03)',
-  sm: '0 1px 3px rgba(18,23,43,0.04), 0 1px 2px rgba(18,23,43,0.03)',
-  md: '0 4px 6px -1px rgba(18,23,43,0.04), 0 2px 4px -1px rgba(18,23,43,0.03)',
-  lg: '0 10px 15px -3px rgba(18,23,43,0.04), 0 4px 6px -2px rgba(18,23,43,0.03)',
-  xl: '0 20px 25px -5px rgba(18,23,43,0.04), 0 10px 10px -5px rgba(18,23,43,0.03)',
-  '2xl': '0 25px 50px -12px rgba(18,23,43,0.08)',
-  inner: 'inset 0 2px 4px rgba(18,23,43,0.03)',
-  glow: '0 0 20px rgba(47, 111, 237, 0.15)',
-  glowStrong: '0 0 40px rgba(47, 111, 237, 0.25)',
+  // Sombras en capas (contacto + ambiente), con tinte de la tinta de marca.
+  xs: '0 1px 2px rgba(11,16,38,0.05)',
+  sm: '0 1px 2px rgba(11,16,38,0.04), 0 2px 8px -2px rgba(11,16,38,0.06)',
+  md: '0 1px 2px rgba(11,16,38,0.04), 0 8px 24px -12px rgba(11,16,38,0.12)',
+  lg: '0 2px 4px rgba(11,16,38,0.04), 0 18px 40px -16px rgba(11,16,38,0.18)',
+  xl: '0 4px 8px rgba(11,16,38,0.04), 0 28px 60px -20px rgba(11,16,38,0.24)',
+  '2xl': '0 40px 80px -24px rgba(11,16,38,0.32)',
+  inner: 'inset 0 1px 2px rgba(11,16,38,0.06)',
+  glow: '0 0 0 1px rgba(91,91,240,0.12), 0 8px 30px -6px rgba(91,91,240,0.35)',
+  glowStrong: '0 0 0 1px rgba(91,91,240,0.2), 0 12px 48px -8px rgba(91,91,240,0.55)',
+  glowAqua: '0 0 0 1px rgba(12,196,171,0.18), 0 10px 36px -8px rgba(12,196,171,0.45)',
 } as const;
 
 // ============================================
@@ -133,7 +162,7 @@ export const typography = {
   fontFamily: {
     sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
     mono: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-    display: ['Cal Sans', 'Inter', 'system-ui', 'sans-serif'],
+    display: ['Sora', 'Inter', 'system-ui', 'sans-serif'],
   },
   fontSize: {
     xs: ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.02em' }],

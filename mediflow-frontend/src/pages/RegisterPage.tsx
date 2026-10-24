@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, User, Lock, CheckCircle2, UserPlus } from 'lucide-react';
-import { Button, Input, Card, useToastHelpers } from '../components/ui';
-import Logo from '../components/Logo';
+import { Eye, EyeOff, User, Lock, ArrowRight, Check } from 'lucide-react';
+import { Button, Input, useToastHelpers } from '../components/ui';
+import LayoutAcceso from '../components/LayoutAcceso';
 import { useAuth, mensajeError } from '../lib/api';
 import { cn } from '../lib/design-system';
 
+// El backend exige al menos 8 caracteres (UsuarioRegister.password).
 const REQUISITOS_CLAVE = [
-  { test: /.{6,}/, label: 'Mínimo 6 caracteres' },
+  { test: /.{8,}/, label: 'Mínimo 8 caracteres' },
   { test: /[a-z]/, label: 'Una minúscula' },
   { test: /[A-Z]/, label: 'Una mayúscula' },
   { test: /\d/, label: 'Un número' },
@@ -32,7 +33,7 @@ export default function RegisterPage() {
 
     if (!formData.password) newErrors.password = 'La contraseña es obligatoria';
     else if (!REQUISITOS_CLAVE.every((r) => r.test.test(formData.password))) {
-      newErrors.password = 'Debe tener mínimo 6 caracteres, mayúscula, minúscula y número';
+      newErrors.password = 'Debe tener mínimo 8 caracteres, mayúscula, minúscula y número';
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -71,21 +72,18 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-brand-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md animate-in">
-        <div className="flex justify-center mb-8"><Logo /></div>
-
-        <Card variant="elevated" padding="xl">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-extrabold text-neutral-950">Crear cuenta</h1>
-              <p className="text-neutral-500 text-sm">Un administrador te asignará tu rol después del registro.</p>
-            </div>
-          </div>
-
+    <LayoutAcceso
+      titulo="Crea tu cuenta"
+      subtitulo="Un administrador te asignará tu rol (personal, auditor o administrador) después del registro."
+      pie={
+        <>
+          ¿Ya tienes cuenta?{' '}
+          <Link to="/login" className="text-brand-600 hover:text-brand-700 font-semibold underline-offset-2 hover:underline">
+            Inicia sesión
+          </Link>
+        </>
+      }
+    >
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               label="Nombre de usuario"
@@ -123,16 +121,32 @@ export default function RegisterPage() {
                 disabled={loading}
               />
               {formData.password && (
-                <div className="mt-2 space-y-1">
-                  {REQUISITOS_CLAVE.map((req) => {
-                    const cumple = req.test.test(formData.password);
-                    return (
-                      <div key={req.label} className="flex items-center gap-1.5 text-xs">
-                        <span className={cn('w-3.5 h-3.5 rounded-full border', cumple ? 'border-success-500 bg-success-500' : 'border-neutral-300')} />
-                        <span className={cn(cumple ? 'text-success-600' : 'text-neutral-400')}>{req.label}</span>
-                      </div>
-                    );
-                  })}
+                <div className="mt-3">
+                  {/* Medidor de fortaleza: un tramo por requisito cumplido */}
+                  <div className="grid grid-cols-4 gap-1.5" aria-hidden="true">
+                    {REQUISITOS_CLAVE.map((req, i) => (
+                      <span
+                        key={req.label}
+                        className={cn(
+                          'h-1.5 rounded-full transition-colors duration-300',
+                          REQUISITOS_CLAVE.filter((r) => r.test.test(formData.password)).length > i ? 'bg-gradient-to-r from-brand-500 to-aqua-500' : 'bg-neutral-200'
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1">
+                    {REQUISITOS_CLAVE.map((req) => {
+                      const cumple = req.test.test(formData.password);
+                      return (
+                        <div key={req.label} className="flex items-center gap-1.5 text-xs">
+                          <span className={cn('w-4 h-4 rounded-full flex items-center justify-center transition-colors', cumple ? 'bg-success-500 text-white' : 'bg-neutral-100 text-transparent')}>
+                            <Check className="w-3 h-3" strokeWidth={3} />
+                          </span>
+                          <span className={cn(cumple ? 'text-neutral-700' : 'text-neutral-400')}>{req.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -149,21 +163,10 @@ export default function RegisterPage() {
               disabled={loading}
             />
 
-            <Button type="submit" className="w-full" size="lg" loading={loading} leftIcon={<CheckCircle2 className="w-5 h-5" />}>
+            <Button type="submit" className="w-full" size="lg" loading={loading} rightIcon={<ArrowRight className="w-5 h-5" />}>
               Crear cuenta
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-neutral-500">
-              ¿Ya tienes cuenta?{' '}
-              <Link to="/login" className="text-brand-600 hover:text-brand-700 font-medium underline-offset-2 hover:underline">
-                Inicia sesión
-              </Link>
-            </p>
-          </div>
-        </Card>
-      </div>
-    </div>
+    </LayoutAcceso>
   );
 }

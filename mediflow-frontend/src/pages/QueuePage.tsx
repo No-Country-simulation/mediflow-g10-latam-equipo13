@@ -105,7 +105,7 @@ export default function QueuePage() {
 
   if (cargando) {
     return (
-      <div className="p-6 space-y-6 animate-in">
+      <div className="p-6 lg:p-8 space-y-6 animate-in">
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-10 w-32" />
@@ -124,8 +124,7 @@ export default function QueuePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-neutral-950">Colas de Enrutamiento</h1>
-          <p className="text-neutral-500 text-sm mt-0.5">Estado actual de la distribución de documentos por cola de destino</p>
+          <p className="text-neutral-600 text-[15px] max-w-2xl">Estado actual de la distribución de documentos por cola de destino</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={handleRefresh} loading={refreshing}>
@@ -329,6 +328,7 @@ export default function QueuePage() {
             </div>
           )},
         ]}
+        variant="enclosed"
       />
 
       {/* Footer info */}

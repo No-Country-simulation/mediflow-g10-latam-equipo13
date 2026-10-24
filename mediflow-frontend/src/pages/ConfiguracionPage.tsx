@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Settings,
   SlidersHorizontal,
   Siren,
   Route,
@@ -142,14 +141,10 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 animate-in">
+    <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6 animate-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-neutral-950 flex items-center gap-2">
-            <Settings className="w-6 h-6 text-brand-500" />
-            Configuración de triaje
-          </h1>
-          <p className="text-neutral-500 text-sm mt-0.5">
+          <p className="text-neutral-600 text-[15px] max-w-2xl">
             Ajusta umbrales, urgencias y destinos sin tocar el código: el agente los aplica en cada documento nuevo.
           </p>
           {cfg.actualizadoPor && cfg.fechaActualizacion && (

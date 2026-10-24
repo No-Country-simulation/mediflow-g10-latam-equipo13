@@ -20,11 +20,38 @@ import {
   Bell,
   Pill,
 } from 'lucide-react';
-import { Badge, Button, Card, Modal, Progress, Tabs } from '../components/ui';
+import { Badge, Button, Card, Modal, Tabs } from '../components/ui';
 import { mensajeError, obtenerDocumentoUnificado, useAuth, type DocumentoUnificado } from '../lib/api';
 import { cargarConfig } from '../lib/triageConfig';
 import { descargarArchivo } from '../lib/exportar';
 import TrazaAgente from '../components/TrazaAgente';
+import GrafoAgente, { rutaDeDocumento, type RutaAgente } from '../components/GrafoAgente';
+import { cn } from '../lib/design-system';
+
+const RUTA_META: Record<RutaAgente, { nombre: string; punto: string }> = {
+  estandar: { nombre: 'Flujo estándar', punto: 'bg-success-500' },
+  urgencia: { nombre: 'Emergencias', punto: 'bg-danger-500' },
+  revision_humana: { nombre: 'Revisión humana', punto: 'bg-warning-500' },
+};
+
+function AnilloConfianza({ valor, umbral }: { valor: number; umbral: number }) {
+  const r = 44;
+  const c = 2 * Math.PI * r;
+  const color = valor >= 0.8 ? '#24e0c4' : valor >= umbral ? '#f79009' : '#f04438';
+  return (
+    <div className="relative w-[112px] h-[112px] shrink-0" title="Estimación del modelo de IA, no una probabilidad exacta">
+      <svg viewBox="0 0 112 112" className="w-full h-full -rotate-90" aria-hidden="true">
+        <circle cx="56" cy="56" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="9" />
+        <circle cx="56" cy="56" r={r} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - valor)} style={{ transition: 'stroke-dashoffset 1s cubic-bezier(.2,.65,.3,1)' }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="kpi-number text-[22px] font-bold text-white leading-none">{Math.round(valor * 100)}%</span>
+        <span className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/45">confianza</span>
+      </div>
+    </div>
+  );
+}
 
 const decisionLabel = {
   aprobado: { label: 'Aprobado', variant: 'success' as const },
@@ -316,65 +343,74 @@ export default function DocumentDetailPage() {
     },
   ];
 
+  const ruta = rutaDeDocumento(doc);
+  const metaRuta = RUTA_META[ruta];
+  const datosClave = [
+    { label: 'Destino', valor: doc.destino ? doc.destino.replace(/_/g, ' ') : 'Sin destino' },
+    { label: 'Paciente', valor: doc.paciente.nombre || 'Sin identificar' },
+    { label: 'Canal de origen', valor: doc.canalOrigen ? doc.canalOrigen.replace(/_/g, ' ') : '—' },
+    { label: 'Archivo', valor: doc.nombreArchivo || 'Texto pegado' },
+  ];
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} leftIcon={<ChevronLeft className="w-4 h-4" />}>
-            Volver
-          </Button>
-          <div>
-            <h1 className="text-xl font-extrabold text-neutral-950">Detalle del documento</h1>
-            <p className="text-neutral-500 text-sm">
-              <span className="font-mono">{doc.documentoId}</span>
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-in">
+      <section className="bg-aurora rounded-3xl px-6 py-6 lg:px-8 lg:py-7">
+        <div className="absolute inset-0 bg-grid-ink" aria-hidden="true" />
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 rounded-xl glass-ink px-3 py-1.5 text-sm font-medium text-white/75 hover:text-white transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" /> Volver
+          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setVerJson(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl glass-ink px-3 py-1.5 text-sm font-medium text-white/75 hover:text-white transition-colors">
+              <Code2 className="w-4 h-4" /> Ver JSON
+            </button>
+            <button type="button" onClick={descargar}
+              className="inline-flex items-center gap-1.5 rounded-xl glass-ink px-3 py-1.5 text-sm font-medium text-white/75 hover:text-white transition-colors">
+              <Download className="w-4 h-4" /> Descargar
+            </button>
+          </div>
+        </div>
+
+        <div className="relative mt-6 flex flex-wrap items-center justify-between gap-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] border border-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
+                <span className={cn('w-1.5 h-1.5 rounded-full', metaRuta.punto)} /> {metaRuta.nombre}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.07] border border-white/10 px-2.5 py-1 text-xs font-semibold text-white/80">
+                <estado.Icon className="w-3.5 h-3.5" /> {estado.label}
+              </span>
+              {doc.prioridad === 'Urgente' && (
+                <span className="inline-flex items-center rounded-full bg-danger-500 px-2.5 py-1 text-xs font-semibold text-white">Urgente</span>
+              )}
+            </div>
+            <h2 className="mt-3 text-2xl lg:text-[32px] leading-tight font-bold text-white">{doc.tipo}</h2>
+            <p className="mt-1 text-sm text-white/50">
+              {doc.especialidad} • <span className="font-mono">{doc.documentoId}</span>
               {doc.fecha && ` • ${new Date(doc.fecha).toLocaleString('es-CO')}`}
             </p>
           </div>
+          <AnilloConfianza valor={doc.scoreConfianza} umbral={umbral} />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge variant={estado.variant} dot size="md">
-            <estado.Icon className="w-3.5 h-3.5 mr-1" />
-            {estado.label}
-          </Badge>
-          <Button variant="outline" size="sm" onClick={() => setVerJson(true)} leftIcon={<Code2 className="w-4 h-4" />}>Ver JSON</Button>
-          <Button variant="outline" size="sm" onClick={descargar} leftIcon={<Download className="w-4 h-4" />}>Descargar</Button>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card variant="default" padding="lg">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center"><FileText className="w-6 h-6" /></div>
-            <div className="min-w-0"><p className="text-sm text-neutral-500">Tipo</p><p className="font-bold text-neutral-900 truncate">{doc.tipo}</p></div>
-          </div>
-        </Card>
-        <Card variant="default" padding="lg">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-info-50 text-info-600 flex items-center justify-center"><Brain className="w-6 h-6" /></div>
-            <div className="min-w-0"><p className="text-sm text-neutral-500">Especialidad</p><p className="font-bold text-neutral-900 truncate">{doc.especialidad}</p></div>
-          </div>
-        </Card>
-        <Card variant="default" padding="lg">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-warning-50 text-warning-600 flex items-center justify-center"><Shield className="w-6 h-6" /></div>
-            <div><p className="text-sm text-neutral-500">Prioridad</p><Badge variant={doc.prioridad === 'Urgente' ? 'danger' : 'success'} dot>{doc.prioridad}</Badge></div>
-          </div>
-        </Card>
-        <Card variant="default" padding="lg">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-success-50 text-success-600 flex items-center justify-center"><CheckCircle2 className="w-6 h-6" /></div>
-            <div>
-              <p className="text-sm text-neutral-500" title="Estimación del modelo de IA, no una probabilidad exacta">Confianza (estimada por IA)</p>
-              <div className="flex items-center gap-2">
-                <Progress value={scorePct} size="sm" className="w-24" variant={doc.scoreConfianza >= 0.8 ? 'success' : doc.scoreConfianza >= umbral ? 'warning' : 'danger'} />
-                <span className="font-semibold tabular-nums">{scorePct}%</span>
-              </div>
+        <GrafoAgente tono="oscuro" ruta={ruta} alerta={!!doc.notificacion} className="relative mt-2 max-w-[860px] mx-auto" />
+
+        <dl className="relative mt-2 grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10">
+          {datosClave.map((d) => (
+            <div key={d.label} className="bg-ink-950/60 px-4 py-3 min-w-0">
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-white/40">{d.label}</dt>
+              <dd className="mt-1 text-sm font-semibold text-white truncate" title={d.valor}>{d.valor}</dd>
             </div>
-          </div>
-        </Card>
-      </div>
+          ))}
+        </dl>
+      </section>
 
-      <Tabs tabs={tabs} />
+      <Tabs tabs={tabs} variant="enclosed" />
 
       <Modal isOpen={verJson} onClose={() => setVerJson(false)} title="JSON del documento" size="full">
         <pre className="bg-neutral-950 text-neutral-100 p-4 rounded-xl overflow-auto max-h-[60vh] text-xs font-mono">
