@@ -4,3 +4,7 @@ __pycache__/
 venv/
 .venv/
 .DS_Store
+# OCI: claves, configuracion local y log
+*.pem
+.oci/
+mediflow_oci.log
