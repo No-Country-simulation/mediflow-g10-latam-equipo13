@@ -18,11 +18,12 @@ const paddingClasses = {
 };
 
 const variantClasses = {
-  default: 'bg-white rounded-2xl border border-neutral-100 shadow-sm',
-  elevated: 'bg-white rounded-2xl border border-neutral-100 shadow-lg',
-  interactive: 'bg-white rounded-2xl border border-neutral-100 shadow-sm hover:shadow-lg transition-shadow cursor-pointer',
-  glass: 'bg-white/80 backdrop-blur-xl rounded-2xl border border-neutral-200/50 shadow-lg',
-  dark: 'bg-neutral-900 rounded-2xl border border-neutral-800',
+  default: 'bg-white rounded-2xl border border-neutral-200/70 shadow-sm',
+  elevated: 'bg-white rounded-2xl border border-neutral-200/70 shadow-lg',
+  interactive:
+    'bg-white rounded-2xl border border-neutral-200/70 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-brand-200 cursor-pointer text-left',
+  glass: 'bg-white/75 backdrop-blur-xl rounded-2xl border border-white/60 shadow-lg',
+  dark: 'bg-ink-900 rounded-2xl border border-white/10 text-white',
 };
 
 export function Card({ children, variant = 'default', className, onClick, padding = 'md' }: CardProps) {
@@ -108,19 +109,28 @@ export interface StatCardProps {
 }
 
 const statVariantClasses = {
-  default: 'bg-white border border-neutral-100',
-  primary: 'bg-white border border-brand-100',
-  success: 'bg-white border border-success-100',
-  warning: 'bg-white border border-warning-100',
-  danger: 'bg-white border border-danger-100',
+  default: 'relative overflow-hidden',
+  primary: 'relative overflow-hidden',
+  success: 'relative overflow-hidden',
+  warning: 'relative overflow-hidden',
+  danger: 'relative overflow-hidden',
+};
+
+// Línea de acento superior y halo del ícono según la variante.
+const statAccentClasses = {
+  default: 'from-neutral-300 to-neutral-200',
+  primary: 'from-brand-500 to-aqua-400',
+  success: 'from-success-500 to-aqua-400',
+  warning: 'from-warning-500 to-warning-200',
+  danger: 'from-danger-500 to-danger-200',
 };
 
 const statIconBgClasses = {
-  default: 'bg-neutral-100 text-neutral-600',
-  primary: 'bg-brand-50 text-brand-600',
-  success: 'bg-success-50 text-success-600',
-  warning: 'bg-warning-50 text-warning-600',
-  danger: 'bg-danger-50 text-danger-600',
+  default: 'bg-neutral-100 text-neutral-600 ring-1 ring-neutral-200',
+  primary: 'bg-gradient-to-br from-brand-50 to-aqua-50 text-brand-600 ring-1 ring-brand-100',
+  success: 'bg-success-50 text-success-600 ring-1 ring-success-100',
+  warning: 'bg-warning-50 text-warning-600 ring-1 ring-warning-100',
+  danger: 'bg-danger-50 text-danger-600 ring-1 ring-danger-100',
 };
 
 export function StatCard({
@@ -139,11 +149,12 @@ export function StatCard({
       onClick={onClick}
       padding="lg"
     >
+      <span className={cn('absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r', statAccentClasses[variant])} aria-hidden="true" />
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-neutral-500 truncate">{title}</p>
-          <div className="mt-1 flex items-baseline gap-2">
-            <p className="text-3xl font-extrabold text-neutral-950 tracking-tight">{value}</p>
+          <p className="text-[13px] font-medium text-neutral-500 truncate">{title}</p>
+          <div className="mt-1.5 flex items-baseline gap-2">
+            <p className="kpi-number text-[32px] leading-none font-bold text-neutral-950">{value}</p>
             {trend && (
               <span
                 className={cn(

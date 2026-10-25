@@ -5,13 +5,8 @@
 .settings
 .classpath
 .project
-
-.mvn
-mvnw
-mvnw.cmd
-
-src/
+target/
 *.iml
-
 .env
 .env.*
+*.json

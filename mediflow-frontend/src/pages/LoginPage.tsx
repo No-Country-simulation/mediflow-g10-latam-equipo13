@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, User, Lock, CheckCircle2 } from 'lucide-react';
-import { Button, Input, Card, useToastHelpers } from '../components/ui';
-import Logo from '../components/Logo';
+import { Eye, EyeOff, User, Lock, ArrowRight } from 'lucide-react';
+import { Button, Input, useToastHelpers } from '../components/ui';
+import LayoutAcceso from '../components/LayoutAcceso';
 import { useAuth, mensajeError } from '../lib/api';
 
 export default function LoginPage() {
@@ -48,16 +48,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-white to-brand-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md animate-in">
-        <div className="flex justify-center mb-8"><Logo /></div>
-
-        <Card variant="elevated" padding="xl">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-extrabold text-neutral-950">Iniciar sesión</h1>
-            <p className="text-neutral-500 mt-2">Accede a tu cuenta de MediFlow</p>
-          </div>
-
+    <LayoutAcceso
+      titulo="Bienvenido de nuevo"
+      subtitulo="Inicia sesión para procesar, revisar y enrutar documentos clínicos."
+      pie={
+        <>
+          ¿No tienes cuenta?{' '}
+          <Link to="/registro" className="text-brand-600 hover:text-brand-700 font-semibold underline-offset-2 hover:underline">
+            Crea una
+          </Link>
+        </>
+      }
+    >
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               label="Nombre de usuario"
@@ -99,21 +101,10 @@ export default function LoginPage() {
               disabled={loading}
             />
 
-            <Button type="submit" className="w-full" size="lg" loading={loading} leftIcon={<CheckCircle2 className="w-5 h-5" />}>
+            <Button type="submit" className="w-full" size="lg" loading={loading} rightIcon={<ArrowRight className="w-5 h-5" />}>
               Iniciar sesión
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-neutral-500">
-              ¿No tienes cuenta?{' '}
-              <Link to="/registro" className="text-brand-600 hover:text-brand-700 font-medium underline-offset-2 hover:underline">
-                Regístrate
-              </Link>
-            </p>
-          </div>
-        </Card>
-      </div>
-    </div>
+    </LayoutAcceso>
   );
 }

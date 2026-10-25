@@ -1,0 +1,7 @@
+[DEFAULT]
+user=ocid1.user.oc1..REEMPLAZAR
+fingerprint=REEMPLAZAR
+tenancy=ocid1.tenancy.oc1..REEMPLAZAR
+region=REEMPLAZAR_REGION
+key_file=/root/.oci/oci_api_key.pem
+# Si la clave tiene passphrase, agrega key_password con el valor adecuado.

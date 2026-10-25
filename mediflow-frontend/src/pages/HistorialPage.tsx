@@ -113,7 +113,7 @@ export default function HistorialPage() {
 
   if (cargando) {
     return (
-      <div className="p-6 space-y-6 animate-in">
+      <div className="p-6 lg:p-8 space-y-6 animate-in">
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-10 w-32" />
@@ -176,8 +176,7 @@ export default function HistorialPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-neutral-950">Historial de Documentos</h1>
-          <p className="text-neutral-500 text-sm mt-0.5">Todos los documentos procesados por el agente con filtros avanzados</p>
+          <p className="text-neutral-600 text-[15px] max-w-2xl">Todos los documentos procesados por el agente con filtros avanzados</p>
         </div>
         <div className="flex items-center gap-3">
           <Button

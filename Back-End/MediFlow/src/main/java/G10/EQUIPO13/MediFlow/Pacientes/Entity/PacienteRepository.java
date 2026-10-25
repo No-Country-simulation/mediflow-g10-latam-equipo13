@@ -15,5 +15,10 @@ public interface PacienteRepository extends JpaRepository<PacienteEntity, Long> 
 
     Optional<PacienteEntity> findByNombreAndEstado(String nombre, Estado estado);
 
+    // Variantes que toleran registros duplicados (devuelven el primero en vez de fallar).
+    Optional<PacienteEntity> findFirstByRutAndEstado(String rut, Estado estado);
+
+    Optional<PacienteEntity> findFirstByNombreAndEstado(String nombre, Estado estado);
+
 
 }

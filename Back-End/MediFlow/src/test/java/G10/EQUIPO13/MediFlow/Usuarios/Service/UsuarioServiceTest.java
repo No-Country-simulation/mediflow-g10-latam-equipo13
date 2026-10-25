@@ -1,6 +1,8 @@
 package G10.EQUIPO13.MediFlow.Usuarios.Service;
 
 
+import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.ConflictoException;
+import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.ResourceNotFoundException;
 import G10.EQUIPO13.MediFlow.Usuarios.Controller.UsuarioRegister;
 import G10.EQUIPO13.MediFlow.Usuarios.Controller.UsuarioResponse;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.Roles;
@@ -205,11 +207,41 @@ class UsuariosServiceTest {
 
     @Test
     void deleteById_deberiaSolicitarLaEliminacion() {
-        doNothing().when(repository).deleteById(1L);
+        when(repository.findById(1L))
+                .thenReturn(Optional.of(usuario));
 
         assertDoesNotThrow(() -> service.deleteById(1L));
 
-        verify(repository).deleteById(1L);
+        verify(repository).delete(usuario);
+    }
+
+    @Test
+    void deleteById_siNoExiste_deberiaLanzarNoEncontrado() {
+        when(repository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.deleteById(99L));
+
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    void roleChange_siNoExiste_deberiaLanzarNoEncontrado() {
+        when(repository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.roleChange(99L, Roles.ADMIN));
+    }
+
+    @Test
+    void register_siElNombreYaExiste_deberiaLanzarConflicto() {
+        when(repository.findByNombre("Juan"))
+                .thenReturn(Optional.of(usuario));
+
+        assertThrows(ConflictoException.class,
+                () -> service.register(new UsuarioRegister("Juan", "clave-segura")));
+
+        verify(repository, never()).save(any());
     }
 
     // 7. CAMBIAR ROL

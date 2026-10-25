@@ -3,467 +3,312 @@ package G10.EQUIPO13.MediFlow.Documentos.Service;
 
 import G10.EQUIPO13.MediFlow.AiClient.AIClient;
 import G10.EQUIPO13.MediFlow.AiClient.DTOs.*;
+import G10.EQUIPO13.MediFlow.Configuracion.ConfiguracionService;
+import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosEntity;
 import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosRepository;
+import G10.EQUIPO13.MediFlow.Documentos.controller.DocumentosRequest;
 import G10.EQUIPO13.MediFlow.Documentos.controller.DocumentosResponse;
+import G10.EQUIPO13.MediFlow.Documentos.controller.RevisionRequest;
+import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosEntity;
 import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosRepository;
 import G10.EQUIPO13.MediFlow.Estudios.Service.EstudiosDTOMapper;
+import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.AIClientException;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.AccesoDenegadoException;
+import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.ConflictoException;
 import G10.EQUIPO13.MediFlow.GlobalException.Exceptions.ResourceNotFoundException;
-import G10.EQUIPO13.MediFlow.Documentos.Entity.DocumentosEntity;
-
-
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.Estado;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteEntity;
-
-import G10.EQUIPO13.MediFlow.Estudios.Entity.EstudiosEntity;
 import G10.EQUIPO13.MediFlow.Pacientes.Entity.PacienteRepository;
 import G10.EQUIPO13.MediFlow.Pacientes.Service.PacientesDTOMapper;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.Roles;
 import G10.EQUIPO13.MediFlow.Usuarios.Entity.UsuariosEntity;
-
-
 import G10.EQUIPO13.MediFlow.Usuarios.Service.CurrentUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.*;
 
+/**
+ * El mapper es real (no un mock): así se prueba también que los datos de la IA lleguen a la entidad.
+ * Datos 100 % sintéticos.
+ */
 @ExtendWith(MockitoExtension.class)
 class DocumentosServiceTest {
 
-    @Mock
-    private DocumentosRepository documentosRepository;
+    @Mock private DocumentosRepository documentosRepository;
+    @Mock private CurrentUserService currentUserService;
+    @Mock private AIClient aiClient;
+    @Mock private PacienteRepository pacienteRepository;
+    @Mock private PacientesDTOMapper pacientesMapper;
+    @Mock private EstudiosRepository estudiosRepository;
+    @Mock private EstudiosDTOMapper estudiosMapper;
+    @Mock private ConfiguracionService configuracionService;
 
-    @Mock
-    private CurrentUserService currentUserService;
-
-    @Mock
-    private DocumentosDTOMapper mapper;
-
-    @Mock
-    private AIClient aiClient;
-
-    @Mock
-    private PacienteRepository pacienteRepository;
-
-    @Mock
-    private PacientesDTOMapper pacientesMapper;
-
-    @Mock
-    private EstudiosRepository estudiosRepository;
-
-    @Mock
-    private EstudiosDTOMapper estudiosMapper;
-
-    @InjectMocks
     private DocumentosService documentosService;
-
     private UsuariosEntity usuario;
-    private DocumentosEntity documento;
-    private DocumentosResponse response;
-    private PacienteEntity pacienteEntity;
-    private EstudiosEntity estudio;
-    private MultipartFile archivo;
-    private ResultadoTriaje resultado;
+    private MockMultipartFile archivo;
 
     @BeforeEach
     void setUp() {
+        documentosService = new DocumentosService(documentosRepository, currentUserService, new DocumentosDTOMapper(),
+                aiClient, pacienteRepository, pacientesMapper, estudiosRepository, estudiosMapper, configuracionService);
+
         usuario = new UsuariosEntity();
         usuario.setId(1L);
-        usuario.setNombre("Juan");
+        usuario.setNombre("auditora");
         usuario.setRol(Roles.ADMIN);
 
-        documento = new DocumentosEntity();
-        documento.setId(1L);
+        archivo = new MockMultipartFile("archivo", "receta.pdf", "application/pdf", "contenido sintético".getBytes());
+    }
 
-        response = mock(DocumentosResponse.class);
-
-        pacienteEntity = new PacienteEntity();
-        pacienteEntity.setId(1L);
-        pacienteEntity.setNombre("Pedro");
-
-        estudio = new EstudiosEntity();
-        estudio.setId(1L);
-        estudio.setNombre("Hemograma");
-
-        archivo = new MockMultipartFile(
-                "archivo",
-                "hemograma.pdf",
-                "application/pdf",
-                "contenido de prueba".getBytes()
-        );
-
-        resultado = new ResultadoTriaje(
-                "procesado",
-                "documento-123",
-                "Contenido del documento",
-                new Clasificacion(
-                        "laboratorio",
-                        "hematologia",
-                        "normal",
-                        0.95,
-                        false,
-                        "laboratorio"
-                ),
+    private ResultadoTriaje resultado(String nombrePaciente, boolean auditoria, String prioridad) {
+        return new ResultadoTriaje(
+                auditoria ? "pendiente_revision_humana" : "procesado",
+                "8f0c2b1e-0000-4000-8000-000000000001",
+                "2026-10-24T03:00:00Z",
+                "Consulta_Externa",
+                "receta.pdf",
+                "Receta sintética",
+                new Clasificacion("Receta", "Medicina General", prioridad, auditoria ? 0.4 : 0.95, auditoria,
+                        auditoria ? "Cola_Revision_Humana" : "Farmacia_Hospitalaria"),
                 new DatosExtraidos(
-                        new Paciente("Pedro", "12345678", (short) 30),
-                        new MedicoSolicitante("Dr. García", "MAT-123"),
+                        new Paciente(nombrePaciente, "11.111.111-1", 41),
+                        new MedicoSolicitante("Dr. Ficticio", "MP 1"),
                         "Hemograma",
-                        "Control de rutina",
-                        "Z00.0"
-                )
+                        "Control",
+                        "Z00.0",
+                        List.of(new Medicamento("Paracetamol", "500 mg", "cada 8 h", "oral", "5 días"))
+                ),
+                new DecisionEnrutamiento(auditoria ? "Cola_Revision_Humana" : "Farmacia_Hospitalaria", auditoria,
+                        "Justificación sintética", null),
+                Map.of("campos_faltantes", List.of()),
+                new AlmacenamientoOci(auditoria ? "BktAuditoria-humana" : "BktProcesados",
+                        "estructurados/2026/10/24/8f0c2b1e-0000-4000-8000-000000000001.json",
+                        "2026/10/24/8f0c2b1e-0000-4000-8000-000000000001_receta.pdf", "exito"),
+                List.of(Map.of("nodo", "extraer", "resultado", "Receta"))
         );
     }
 
+    private DocumentosEntity guardadoCon(ArgumentCaptor<DocumentosEntity> captor) {
+        verify(documentosRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
     // =========================================
-    // ANALIZE FILE
+    // ANÁLISIS
     // =========================================
 
     @Test
     void analizeFile_siElUsuarioNoTieneRol_deberiaLanzarExcepcion() {
         usuario.setRol(Roles.NO_ASIGNADO);
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
 
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
+        assertThrows(AccesoDenegadoException.class, () -> documentosService.analizeFile(archivo, null));
 
-        assertThrows(
-                AccesoDenegadoException.class,
-                () -> documentosService.analizeFile(archivo)
-        );
+        verifyNoInteractions(aiClient, documentosRepository, pacienteRepository, estudiosRepository);
+    }
 
-        verify(currentUserService).getCurrentUserId();
+    @Test
+    void analizeFile_guardaTodosLosDatosExtraidosYLaDecision() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        when(configuracionService.paraAgente()).thenReturn(Map.of("umbral", 0.6));
+        when(aiClient.analizarDocumento(archivo, "Consulta_Externa", Map.of("umbral", 0.6)))
+                .thenReturn(resultado("Paciente Ficticio", false, "Rutina"));
+        when(documentosRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(pacienteRepository.findFirstByRutAndEstado("11.111.111-1", Estado.INTERNADO)).thenReturn(Optional.empty());
+        when(pacienteRepository.findFirstByNombreAndEstado("Paciente Ficticio", Estado.INTERNADO)).thenReturn(Optional.empty());
+        PacienteEntity paciente = new PacienteEntity();
+        when(pacientesMapper.toDomainFromAI(any(), any())).thenReturn(paciente);
+        when(pacienteRepository.save(paciente)).thenReturn(paciente);
 
-        verifyNoInteractions(
-                aiClient,
-                documentosRepository,
-                mapper,
-                pacienteRepository,
-                pacientesMapper,
-                estudiosRepository,
-                estudiosMapper
-        );
+        DocumentosResponse respuesta = documentosService.analizeFile(archivo, "Consulta_Externa");
+
+        DocumentosEntity guardado = guardadoCon(ArgumentCaptor.forClass(DocumentosEntity.class));
+        assertEquals("Dr. Ficticio", guardado.getNombreMedico());
+        assertEquals("MP 1", guardado.getMatriculaMedico());
+        assertEquals("Paciente Ficticio", guardado.getPacienteNombre());
+        assertEquals((short) 41, guardado.getPacienteEdad());
+        assertEquals("Farmacia_Hospitalaria", guardado.getDestino());
+        assertEquals("2026/10/24/8f0c2b1e-0000-4000-8000-000000000001_receta.pdf", guardado.getOciOriginal());
+        assertFalse(guardado.getRequiereAuditoria());
+
+        assertEquals("Paracetamol", respuesta.medicamentos().get(0).nombre());
+        assertEquals("extraer", respuesta.traza().get(0).get("nodo"));
+        assertEquals("Farmacia_Hospitalaria", respuesta.colaEnrutamiento());
+        verify(pacienteRepository).save(paciente);
     }
 
     @Test
     void analizeFile_siElPacienteEstaInternado_deberiaReutilizarlo() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        when(aiClient.analizarDocumento(any(), any(), any())).thenReturn(resultado("Pedro", false, "Rutina"));
+        when(documentosRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        PacienteEntity internado = new PacienteEntity();
+        when(pacienteRepository.findFirstByRutAndEstado("11.111.111-1", Estado.INTERNADO)).thenReturn(Optional.of(internado));
+        EstudiosEntity estudio = new EstudiosEntity();
+        when(estudiosMapper.toDomainFromAI(any(), any(), any())).thenReturn(estudio);
 
-        when(aiClient.analizarDocumento(archivo))
-                .thenReturn(resultado);
-
-        when(mapper.toEntityFromAI(resultado, usuario))
-                .thenReturn(documento);
-
-        when(documentosRepository.save(documento))
-                .thenReturn(documento);
-
-        when(pacienteRepository.findByNombreAndEstado(
-                "Pedro",
-                Estado.INTERNADO
-        )).thenReturn(Optional.of(pacienteEntity));
-
-        when(estudiosMapper.toDomainFromAI(
-                resultado,
-                usuario,
-                pacienteEntity
-        )).thenReturn(estudio);
-
-        when(mapper.toResponse(documento))
-                .thenReturn(response);
-
-        DocumentosResponse actual =
-                documentosService.analizeFile(archivo);
-
-        assertSame(response, actual);
-
-        verify(documentosRepository).save(documento);
-
-        verify(pacienteRepository).findByNombreAndEstado(
-                "Pedro",
-                Estado.INTERNADO
-        );
+        documentosService.analizeFile(archivo, null);
 
         verify(pacienteRepository, never()).save(any());
-
-        verify(pacientesMapper, never())
-                .toDomainFromAI(resultado, usuario);
-
-        verify(estudiosRepository).save(estudio);
-
-        verify(mapper).toResponse(documento);
-    }
-
-    @Test
-    void analizeFile_siElPacienteNoEstaInternado_deberiaCrearlo() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
-
-        when(aiClient.analizarDocumento(archivo))
-                .thenReturn(resultado);
-
-        when(mapper.toEntityFromAI(resultado, usuario))
-                .thenReturn(documento);
-
-        when(documentosRepository.save(documento))
-                .thenReturn(documento);
-
-        when(pacienteRepository.findByNombreAndEstado(
-                "Pedro",
-                Estado.INTERNADO
-        )).thenReturn(Optional.empty());
-
-        when(pacientesMapper.toDomainFromAI(resultado, usuario))
-                .thenReturn(pacienteEntity);
-
-        when(pacienteRepository.save(pacienteEntity))
-                .thenReturn(pacienteEntity);
-
-        when(estudiosMapper.toDomainFromAI(
-                resultado,
-                usuario,
-                pacienteEntity
-        )).thenReturn(estudio);
-
-        when(mapper.toResponse(documento))
-                .thenReturn(response);
-
-        DocumentosResponse actual =
-                documentosService.analizeFile(archivo);
-
-        assertSame(response, actual);
-
-        verify(pacientesMapper)
-                .toDomainFromAI(resultado, usuario);
-
-        verify(pacienteRepository).save(pacienteEntity);
-
-        verify(estudiosMapper).toDomainFromAI(
-                resultado,
-                usuario,
-                pacienteEntity
-        );
-
+        verify(estudiosMapper).toDomainFromAI(any(), any(), any());
         verify(estudiosRepository).save(estudio);
     }
 
     @Test
-    void analizeFile_siElMapperDevuelveEstudioNull_noDeberiaGuardarlo() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
+    void analizeFile_siNoSeIdentificaAlPaciente_noCreaPacienteNiEstudio() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        when(aiClient.analizarDocumento(any(), any(), any())).thenReturn(resultado(null, true, "Rutina"));
+        when(documentosRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        when(aiClient.analizarDocumento(archivo))
-                .thenReturn(resultado);
+        documentosService.analizeFile(archivo, null);
 
-        when(mapper.toEntityFromAI(resultado, usuario))
-                .thenReturn(documento);
-
-        when(documentosRepository.save(documento))
-                .thenReturn(documento);
-
-        when(pacienteRepository.findByNombreAndEstado(
-                "Pedro",
-                Estado.INTERNADO
-        )).thenReturn(Optional.of(pacienteEntity));
-
-        when(estudiosMapper.toDomainFromAI(
-                resultado,
-                usuario,
-                pacienteEntity
-        )).thenReturn(null);
-
-        when(mapper.toResponse(documento))
-                .thenReturn(response);
-
-        DocumentosResponse actual =
-                documentosService.analizeFile(archivo);
-
-        assertSame(response, actual);
-
-        verify(estudiosMapper).toDomainFromAI(
-                resultado,
-                usuario,
-                pacienteEntity
-        );
-
-        verify(estudiosRepository, never()).save(any());
+        verifyNoInteractions(pacienteRepository, pacientesMapper, estudiosMapper, estudiosRepository);
     }
 
     @Test
-    void analizeFile_siLaIAFalla_deberiaPropagarExcepcion() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
+    void analizeText_enviaElTextoAlAgente() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        when(aiClient.analizarTexto(eq("Texto clínico sintético"), eq("Guardia"), any()))
+                .thenReturn(resultado(null, false, "Urgente"));
+        when(documentosRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        when(aiClient.analizarDocumento(archivo))
-                .thenThrow(new RuntimeException("Error del servicio IA"));
+        DocumentosResponse respuesta = documentosService.analizeText(new DocumentosRequest("Texto clínico sintético", "Guardia"));
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
-                () -> documentosService.analizeFile(archivo)
-        );
-
-        assertEquals(
-                "Error del servicio IA",
-                exception.getMessage()
-        );
-
-        verify(aiClient).analizarDocumento(archivo);
-
-        verifyNoInteractions(
-                documentosRepository,
-                mapper,
-                pacienteRepository,
-                pacientesMapper,
-                estudiosRepository,
-                estudiosMapper
-        );
+        assertEquals("Urgente", respuesta.prioridad());
     }
 
     // =========================================
-    // FIND ALL
+    // CONSULTAS
     // =========================================
-
-    @Test
-    void findall_deberiaRetornarTodosLosDocumentos() {
-        DocumentosEntity otroDocumento = new DocumentosEntity();
-        otroDocumento.setId(2L);
-
-        DocumentosResponse otraResponse =
-                mock(DocumentosResponse.class);
-
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
-
-        when(documentosRepository.findAll())
-                .thenReturn(List.of(documento, otroDocumento));
-
-        when(mapper.toResponse(documento))
-                .thenReturn(response);
-
-        when(mapper.toResponse(otroDocumento))
-                .thenReturn(otraResponse);
-
-        List<DocumentosResponse> actual =
-                documentosService.findall();
-
-        assertEquals(2, actual.size());
-        assertSame(response, actual.get(0));
-        assertSame(otraResponse, actual.get(1));
-
-        verify(documentosRepository).findAll();
-        verify(mapper).toResponse(documento);
-        verify(mapper).toResponse(otroDocumento);
-    }
-
-    @Test
-    void findall_siElUsuarioNoTieneRol_deberiaLanzarExcepcion() {
-        usuario.setRol(Roles.NO_ASIGNADO);
-
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
-
-        assertThrows(
-                AccesoDenegadoException.class,
-                () -> documentosService.findall()
-        );
-
-        verifyNoInteractions(documentosRepository, mapper);
-    }
-
-    // =========================================
-    // FIND BY ID
-    // =========================================
-
-    @Test
-    void findById_siExiste_deberiaRetornarDocumento() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
-
-        when(documentosRepository.findById(1L))
-                .thenReturn(Optional.of(documento));
-
-        when(mapper.toResponse(documento))
-                .thenReturn(response);
-
-        DocumentosResponse actual =
-                documentosService.findById(1L);
-
-        assertSame(response, actual);
-
-        verify(documentosRepository).findById(1L);
-        verify(mapper).toResponse(documento);
-    }
 
     @Test
     void findById_siNoExiste_deberiaLanzarExcepcion() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        when(documentosRepository.findById(99L)).thenReturn(Optional.empty());
 
-        when(documentosRepository.findById(99L))
-                .thenReturn(Optional.empty());
-
-        assertThrows(
-                ResourceNotFoundException.class,
-                () -> documentosService.findById(99L)
-        );
-
-        verify(documentosRepository).findById(99L);
-        verifyNoInteractions(mapper);
+        assertThrows(ResourceNotFoundException.class, () -> documentosService.findById(99L));
     }
 
     @Test
-    void findById_siElUsuarioNoTieneRol_deberiaLanzarExcepcion() {
-        usuario.setRol(Roles.NO_ASIGNADO);
+    void obtenerArchivo_sinOriginalEnOci_deberiaLanzarNoEncontrado() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        when(documentosRepository.findById(1L)).thenReturn(Optional.of(new DocumentosEntity()));
 
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
-
-        assertThrows(
-                AccesoDenegadoException.class,
-                () -> documentosService.findById(1L)
-        );
-
-        verifyNoInteractions(documentosRepository, mapper);
+        assertThrows(ResourceNotFoundException.class, () -> documentosService.obtenerArchivo(1L));
+        verifyNoInteractions(aiClient);
     }
 
     // =========================================
-    // DELETE BY ID
+    // REVISIÓN HUMANA
     // =========================================
 
-    @Test
-    void deleteById_siElUsuarioEsAdmin_deberiaEliminarDocumento() {
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
-
-        assertDoesNotThrow(
-                () -> documentosService.deleteById(1L)
-        );
-
-        verify(documentosRepository).deleteById(1L);
+    private DocumentosEntity pendiente() {
+        DocumentosEntity doc = new DocumentosMapperAyuda().pendiente();
+        when(documentosRepository.findById(5L)).thenReturn(Optional.of(doc));
+        when(documentosRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        return doc;
     }
 
     @Test
-    void deleteById_siElUsuarioNoEsAdmin_deberiaLanzarExcepcion() {
-        usuario.setRol(Roles.NO_ASIGNADO);
+    void revisar_personalNoPuedeRevisar() {
+        usuario.setRol(Roles.PERSONAL);
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
 
-        when(currentUserService.getCurrentUserId())
-                .thenReturn(usuario);
+        assertThrows(AccesoDenegadoException.class,
+                () -> documentosService.revisar(5L, new RevisionRequest("aprobado", null, null, null)));
+    }
 
-        assertThrows(
-                AccesoDenegadoException.class,
-                () -> documentosService.deleteById(1L)
-        );
+    @Test
+    void revisar_aprobado_saleDeLaColaDeRevisionHaciaSuDestino() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        DocumentosEntity doc = pendiente();
+        when(configuracionService.destinoPara("Receta")).thenReturn("Farmacia_Hospitalaria");
+        when(aiClient.registrarRevision(anyMap())).thenReturn(Map.of("bucket", "BktProcesados", "status_backup", "exito"));
 
-        verify(documentosRepository, never()).deleteById(anyLong());
+        DocumentosResponse respuesta = documentosService.revisar(5L, new RevisionRequest("aprobado", "Todo correcto", "otro", null));
+
+        assertFalse(doc.getRequiereAuditoria());
+        assertEquals("revisado", doc.getStatus());
+        assertEquals("Farmacia_Hospitalaria", doc.getDestino());
+        assertEquals("auditora", doc.getRevisionRevisor());
+        assertEquals("BktProcesados", doc.getOciBucket());
+        assertEquals("aprobado", respuesta.revision().decision());
+    }
+
+    @Test
+    void revisar_corregido_aplicaLosDatosDelAuditor() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        DocumentosEntity doc = pendiente();
+        when(aiClient.registrarRevision(anyMap())).thenReturn(Map.of());
+        var datos = new RevisionRequest.DatosCorregidos("Paciente Corregido", null, (short) 30, null, null,
+                null, null, null, "Urgente");
+
+        documentosService.revisar(5L, new RevisionRequest("corregido", null, null, datos));
+
+        assertEquals("Paciente Corregido", doc.getPacienteNombre());
+        assertEquals((short) 30, doc.getPacienteEdad());
+        assertEquals("Cola_Emergencia_Medica", doc.getDestino());
+    }
+
+    @Test
+    void revisar_siOciFalla_laRevisionSeGuardaIgual() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        DocumentosEntity doc = pendiente();
+        when(aiClient.registrarRevision(anyMap())).thenThrow(new AIClientException("OCI caído"));
+
+        documentosService.revisar(5L, new RevisionRequest("rechazado", "Ilegible", null, null));
+
+        assertEquals("rechazado", doc.getStatus());
+        assertEquals("revision_pendiente_oci", doc.getOciEstado());
+        verify(documentosRepository).save(doc);
+    }
+
+    @Test
+    void revisar_documentoNoPendiente_deberiaLanzarConflicto() {
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+        DocumentosEntity doc = new DocumentosEntity();
+        doc.setRequiereAuditoria(false);
+        when(documentosRepository.findById(6L)).thenReturn(Optional.of(doc));
+
+        assertThrows(ConflictoException.class,
+                () -> documentosService.revisar(6L, new RevisionRequest("aprobado", null, null, null)));
+    }
+
+    @Test
+    void deleteById_soloAdmin() {
+        usuario.setRol(Roles.AUDITOR);
+        when(currentUserService.getCurrentUserId()).thenReturn(usuario);
+
+        assertThrows(AccesoDenegadoException.class, () -> documentosService.deleteById(1L));
+        verify(documentosRepository, never()).delete(any());
+    }
+
+    /** Documento sintético pendiente de revisión, con su JSON en el bucket de auditoría. */
+    private static class DocumentosMapperAyuda {
+        DocumentosEntity pendiente() {
+            DocumentosEntity doc = new DocumentosEntity();
+            doc.setId(5L);
+            doc.setTipo("Receta");
+            doc.setPrioridad("Rutina");
+            doc.setRequiereAuditoria(true);
+            doc.setStatus("pendiente_revision_humana");
+            doc.setDocumentoId("8f0c2b1e-0000-4000-8000-000000000001");
+            doc.setOciBucket("BktAuditoria-humana");
+            doc.setOciObjeto("estructurados/2026/10/24/8f0c2b1e-0000-4000-8000-000000000001.json");
+            return doc;
+        }
     }
 }

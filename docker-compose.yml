@@ -1,0 +1,83 @@
+# MediFlow completo con un comando:   docker compose up -d --build
+# Antes: copia .env.example a .env y completa los valores (ver README).
+name: mediflow
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mediflow}
+      MYSQL_USER: ${DB_USER:-mediflow}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env}
+      TZ: UTC
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 15s
+      retries: 12
+      start_period: 60s
+
+  fastapi:
+    build: ./Backend_FastAPI
+    image: mediflow-fastapi:local
+    restart: unless-stopped
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      OCI_CONFIG_FILE: /run/oci/config
+      OCI_PROFILE: ${OCI_PROFILE:-DEFAULT}
+      ALERTA_WEBHOOK_URL: ${ALERTA_WEBHOOK_URL:-}
+      ALERTA_INCLUIR_PACIENTE: ${ALERTA_INCLUIR_PACIENTE:-false}
+    volumes:
+      # Carpeta con "config" y la clave privada de OCI (solo lectura). Sin OCI, el agente funciona igual.
+      - ${OCI_CONFIG_DIR:-./infra/oci-sin-configurar}:/run/oci:ro
+    ports:
+      - "${FASTAPI_PORT:-8002}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      # Tiempos amplios: en equipos cargados un chequeo de 5 s marcaba el servicio como caído.
+      interval: 15s
+      timeout: 15s
+      retries: 12
+      start_period: 40s
+
+  backend:
+    build: ./Back-End/MediFlow
+    image: mediflow-backend:local
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fastapi:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-mediflow}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USER: ${DB_USER:-mediflow}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env (mínimo 32 caracteres)}
+      PYTHON_URL: http://fastapi:8000
+      MEDIFLOW_ADMIN_USER: ${MEDIFLOW_ADMIN_USER:-}
+      MEDIFLOW_ADMIN_PASSWORD: ${MEDIFLOW_ADMIN_PASSWORD:-}
+    ports:
+      - "${BACKEND_PORT:-8088}:8080"
+
+  frontend:
+    build: ./mediflow-frontend
+    image: mediflow-frontend:local
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - fastapi
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+
+volumes:
+  mysql-data:
+    # Para reutilizar una base existente, pon en MYSQL_VOLUME el nombre de su volumen de Docker.
+    name: ${MYSQL_VOLUME:-mediflow-mysql-data}

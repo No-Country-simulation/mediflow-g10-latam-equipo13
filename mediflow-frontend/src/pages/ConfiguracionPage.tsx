@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Settings,
   SlidersHorizontal,
   Siren,
   Route,
@@ -15,10 +14,11 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Badge, Button, Card, Input, Select, useToastHelpers } from '../components/ui';
-import { SERVICE_URLS, verificarServicios } from '../lib/api';
+import { SERVICE_URLS, mensajeError, verificarServicios } from '../lib/api';
 import {
   TIPOS_DOCUMENTO,
   cargarConfig,
+  cargarConfigServidor,
   guardarConfig,
   restablecerConfig,
   type DestinoRuta,
@@ -52,8 +52,19 @@ export default function ConfiguracionPage() {
   const [nuevaPalabra, setNuevaPalabra] = useState('');
   const [servicios, setServicios] = useState<{ spring: boolean; fastapi: boolean } | null>(null);
   const [probando, setProbando] = useState(false);
+  const [sinServidor, setSinServidor] = useState<string | null>(null);
 
   const hayCambios = useMemo(() => JSON.stringify(cfg) !== guardada, [cfg, guardada]);
+
+  // Las reglas vigentes viven en el servidor; la copia local solo evita una pantalla vacía mientras carga.
+  useEffect(() => {
+    cargarConfigServidor()
+      .then((servidor) => {
+        setCfg(servidor);
+        setGuardada(JSON.stringify(servidor));
+      })
+      .catch((e) => setSinServidor(mensajeError(e, 'No se pudo leer la configuración del servidor.')));
+  }, []);
 
   // Aviso al cerrar la pestaña con cambios sin guardar.
   useEffect(() => {
@@ -105,19 +116,22 @@ export default function ConfiguracionPage() {
     }
     setGuardando(true);
     const limpio: TriageConfig = { ...cfg, destinos: cfg.destinos.map((d) => ({ ...d, nombre: d.nombre.trim() })) };
-    const donde = await guardarConfig(limpio);
-    setCfg(limpio);
-    setGuardada(JSON.stringify(limpio));
-    setGuardando(false);
-    if (donde === 'servidor') success('Configuración guardada', 'Sincronizada con el servidor.');
-    else info('Guardada en este navegador', 'El servidor aún no expone /api/v1/configuracion, por lo que las reglas no afectan al agente.');
+    try {
+      const guardadaServidor = await guardarConfig(limpio);
+      setCfg(guardadaServidor);
+      setGuardada(JSON.stringify(guardadaServidor));
+      setSinServidor(null);
+      success('Reglas aplicadas al agente', 'Los próximos documentos se procesan con esta configuración.');
+    } catch (e) {
+      toastError('No se pudo guardar', mensajeError(e, 'El servidor rechazó la configuración.'));
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const restablecer = () => {
-    const base = restablecerConfig();
-    setCfg(base);
-    setGuardada(JSON.stringify(base));
-    info('Valores por defecto restaurados');
+    setCfg(restablecerConfig());
+    info('Valores por defecto cargados', 'Pulsa Guardar para aplicarlos al agente.');
   };
 
   const probar = async () => {
@@ -127,14 +141,20 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 animate-in">
+    <div className="p-6 lg:p-8 max-w-5xl mx-auto space-y-6 animate-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-extrabold text-neutral-950 flex items-center gap-2">
-            <Settings className="w-6 h-6 text-brand-500" />
-            Configuración de triaje
-          </h1>
-          <p className="text-neutral-500 text-sm mt-0.5">Ajusta umbrales, urgencias y destinos sin tocar el código.</p>
+          <p className="text-neutral-600 text-[15px] max-w-2xl">
+            Ajusta umbrales, urgencias y destinos sin tocar el código: el agente los aplica en cada documento nuevo.
+          </p>
+          {cfg.actualizadoPor && cfg.fechaActualizacion && (
+            <p className="text-xs text-neutral-400 mt-1">
+              Último cambio: {cfg.actualizadoPor}, {new Date(cfg.fechaActualizacion).toLocaleString('es-CO')}
+            </p>
+          )}
+          {sinServidor && (
+            <p className="text-xs text-warning-700 mt-1">Mostrando la última copia guardada en este navegador: {sinServidor}</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {hayCambios && <Badge variant="warning" dot>Cambios sin guardar</Badge>}
@@ -181,7 +201,7 @@ export default function ConfiguracionPage() {
           Términos de urgencia
         </h2>
         <p className="text-sm text-neutral-500 mb-4">
-          Si el documento contiene alguno de estos términos y no fue marcado como urgente, se muestra una advertencia al procesarlo.
+          El agente marca como urgente (y alerta a la guardia) todo documento que mencione alguno de estos términos.
         </p>
         <div className="flex flex-wrap gap-2 mb-4">
           {cfg.palabrasUrgencia.map((p) => (

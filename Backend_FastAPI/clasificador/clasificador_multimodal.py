@@ -1,186 +1,132 @@
+"""
+Cliente de Gemini: lee el documento (archivo o texto) y devuelve los datos en JSON.
 
-import os
+Solo extrae y describe. Las decisiones (confianza final, urgencia y destino) las toma
+el grafo del agente con reglas explícitas, no el modelo.
+"""
 import json
+import logging
+import os
 import time
 
 from google import genai
 from google.genai import types
 
+from agente.reglas import CATEGORIAS
 
-# Inicializar cliente de Gemini
-client = genai.Client(
-    api_key=os.environ.get("GEMINI_API_KEY")
-)
+logger = logging.getLogger("mediflow.ia")
 
+MODELO = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+# Ante saturación de Gemini (503/429) se reintenta con esperas crecientes: ~50 s en total.
+ESPERAS_REINTENTO = (5, 15, 30)
+MAX_INTENTOS = len(ESPERAS_REINTENTO) + 1
 
-def clasificar_documento(ruta_archivo):
-    """
-    Recibe la ruta de un documento y utiliza Gemini
-    para clasificarlo y extraer información clínica.
-    """
+PROMPT = f"""
+Actúas como el motor de extracción de documentos clínicos de MediFlow.
+Analiza el documento completo y responde SOLO con un JSON válido.
 
-    print(f"Cargando documento: {ruta_archivo}...")
+1. Clasifícalo en UNA de estas categorías exactas: {", ".join(CATEGORIAS)}.
+   Los informes de laboratorio van en "Informe de Estudio por Imágenes".
+2. Extrae paciente, médico solicitante (nombre y matrícula), especialidad,
+   estudio realizado o solicitado, diagnóstico principal y CIE-10 sugerido.
+3. Si hay medicamentos, extrae cada uno con dosis, frecuencia, vía y duración.
+4. Indica la prioridad clínica: "Urgente" o "Rutina".
+5. En "hallazgos_criticos" lista hallazgos graves que requieran atención inmediata
+   (por ejemplo: TEP agudo, infarto, ACV, sepsis). Lista vacía si no hay.
+6. En "ambiguedades" lista lo que impide un procesamiento confiable: texto ilegible,
+   datos que se contradicen, campos esenciales ausentes. Lista vacía si no hay.
+7. "score_confianza" (0 a 1) es tu confianza en la clasificación y la extracción.
+8. "contenido" es el texto que puedas leer del documento, sin inventar nada.
 
-    max_intentos = 3
-    tiempo_espera = 4
+Reglas: no inventes datos; si algo no aparece, usa null. La edad es un entero sin unidades.
 
-    for intento in range(1, max_intentos + 1):
-        try:
-            print(
-                f"\n[Intento {intento} de {max_intentos}] "
-                "Subiendo archivo y conectando con Gemini..."
-            )
-
-            # Subir documento a Gemini
-            archivo_subido = client.files.upload(
-                file=ruta_archivo
-            )
-
-            print("¡Archivo cargado exitosamente en Gemini!")
-
-            # Prompt de clasificación y extracción
-            prompt_multimodal = """
-Actúa como el motor de clasificación y extracción inteligente
-de documentos clínicos para el proyecto MediFlow.
-
-Analiza el documento adjunto completo.
-
-1. Clasifícalo estrictamente en una de estas categorías:
-   Receta, Informe de Estudio por Imágenes,
-   Orden de Procedimiento, Epicrisis o Certificado Médico.
-
-2. Extrae los datos clave del paciente y del médico solicitante.
-
-3. Determina el nivel de prioridad:
-   - Rutina
-   - Urgente
-
-4. Extrae, cuando estén disponibles, los siguientes datos
-   clínicos adicionales:
-
-   - estudio_realizado
-   - diagnostico_principal
-   - cie10_sugerido
-
-5. Extrae también el contenido textual del documento.
-
-   El campo "contenido" debe contener el texto que puedas
-   leer directamente del documento, conservando la información
-   relevante del documento.
-
-   No inventes ni completes información que no sea visible.
-   Si no puedes extraer texto legible, devuelve null.
-
-REGLAS IMPORTANTES:
-
-- No inventes información.
-- Si un dato no aparece claramente en el documento,
-  devuelve null para ese campo.
-- La edad del paciente debe devolverse como un número entero,
-  sin unidades como "años".
-- El score de confianza debe ser un número entre 0 y 1.
-- El campo "contenido" debe contener únicamente información
-  obtenida del documento.
-
-INSTRUCCIONES DE UMBRAL Y ENRUTAMIENTO:
-
-- Si el score de confianza es menor a 0.60 o existe
-  ambigüedad crítica, marca:
-  "requiere_auditoria_humana": true
-
-- Si el score es menor a 0.60 o existe ambigüedad crítica,
-  la cola de enrutamiento debe ser la cola de revisión.
-
-- Si el score es mayor o igual a 0.60 y no existe
-  ambigüedad crítica, enruta según la prioridad clínica.
-
-DEVUELVE ÚNICAMENTE UN JSON VÁLIDO con esta estructura:
-
-{
-    "contenido": "texto extraído del documento",
-    "tipo_documento": "Receta",
-    "paciente": {
-        "nombre": null,
-        "rut": null,
-        "edad": null
-    },
-    "medico": {
-        "nombre": null,
-        "rut": null,
-        "especialidad": null
-    },
-    "prioridad": "Rutina",
-    "estudio_realizado": null,
-    "diagnostico_principal": null,
-    "cie10_sugerido": null,
-    "score_confianza": 0.0,
-    "requiere_auditoria_humana": false,
-    "cola_enrutamiento": "Rutina"
-}
+Estructura exacta:
+{{
+  "tipo_documento": "Receta",
+  "especialidad": null,
+  "prioridad": "Rutina",
+  "score_confianza": 0.0,
+  "contenido": null,
+  "paciente": {{"nombre": null, "rut": null, "edad": null}},
+  "medico": {{"nombre": null, "matricula": null, "especialidad": null}},
+  "estudio_realizado": null,
+  "diagnostico_principal": null,
+  "cie10_sugerido": null,
+  "medicamentos": [{{"nombre": "", "dosis": null, "frecuencia": null, "via": null, "duracion": null}}],
+  "hallazgos_criticos": [],
+  "ambiguedades": [],
+  "justificacion": "por qué clasificaste así, en una oración"
+}}
 """
 
-            # Enviar documento e instrucciones a Gemini
-            response = client.models.generate_content(
-                model="gemini-3.7-flash",
-                contents=[
-                    archivo_subido,
-                    prompt_multimodal
-                ],
+
+def _cliente():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Falta configurar la variable de entorno GEMINI_API_KEY.")
+    return genai.Client(api_key=api_key)
+
+
+def _es_transitorio(error: Exception) -> bool:
+    texto = str(error)
+    return any(marca in texto for marca in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded"))
+
+
+def _generar(cliente, contenido) -> dict | None:
+    """Llama al modelo con reintentos ante saturación (503/429). No registra datos clínicos."""
+    for intento in range(1, MAX_INTENTOS + 1):
+        try:
+            respuesta = cliente.models.generate_content(
+                model=MODELO,
+                contents=contenido,
                 config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
-                )
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                    # No se usan herramientas: se desactiva la llamada automática de funciones.
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                ),
             )
-
-            # Convertir respuesta de Gemini a objeto Python
-            resultado_json = json.loads(response.text)
-
-            print(
-                "\n--- RESULTADO DE CLASIFICACIÓN Y "
-                "EXTRACCIÓN EXITOSO ---"
-            )
-
-            print(
-                json.dumps(
-                    resultado_json,
-                    indent=4,
-                    ensure_ascii=False
-                )
-            )
-
-            # Entregar resultado al código que llamó a la función
-            return resultado_json
-
-        except Exception as e:
-            error_str = str(e)
-
-            print(
-                f"\nFalla en el intento {intento}: "
-                f"{error_str}"
-            )
-
-            # Comprobar si es un error temporal de Gemini
-            if "503" in error_str or "UNAVAILABLE" in error_str:
-                if intento < max_intentos:
-                    print(
-                        f"Servidores ocupados. "
-                        f"Esperando {tiempo_espera} segundos "
-                        "antes de reintentar..."
-                    )
-
-                    time.sleep(tiempo_espera)
-                else:
-                    print(
-                        "\nSe agotaron los reintentos "
-                        "por saturación del servidor."
-                    )
-            else:
-                print(
-                    "\nSe encontró un error diferente "
-                    "al de saturación. "
-                    "Deteniendo ejecución."
-                )
-                break
-
-    print("\nEl proceso no pudo completarse.")
-
+            datos = json.loads(respuesta.text)
+            if isinstance(datos, list) and datos:
+                datos = datos[0]
+            return datos if isinstance(datos, dict) else None
+        except Exception as error:  # noqa: BLE001 - se informa el tipo, nunca el contenido
+            if _es_transitorio(error) and intento < MAX_INTENTOS:
+                espera = ESPERAS_REINTENTO[intento - 1]
+                logger.warning("Gemini saturado (intento %d/%d); reintento en %ds", intento, MAX_INTENTOS, espera)
+                time.sleep(espera)
+                continue
+            logger.error("Fallo de Gemini (%s) en el intento %d", type(error).__name__, intento)
+            return None
     return None
+
+
+def analizar_archivo(ruta_archivo: str) -> dict | None:
+    """Sube el archivo a Gemini, lo analiza y lo borra de Gemini al terminar."""
+    try:
+        cliente = _cliente()
+        archivo = cliente.files.upload(file=ruta_archivo)
+    except Exception as error:  # noqa: BLE001
+        logger.error("No se pudo preparar el documento para Gemini (%s)", type(error).__name__)
+        return None
+    try:
+        return _generar(cliente, [archivo, PROMPT])
+    finally:
+        try:
+            cliente.files.delete(name=archivo.name)
+        except Exception:  # noqa: BLE001 - Gemini lo borra solo a las 48 h
+            pass
+
+
+def analizar_texto(texto: str) -> dict | None:
+    """Analiza texto plano sin subir archivos."""
+    try:
+        cliente = _cliente()
+    except Exception as error:  # noqa: BLE001
+        logger.error("No se pudo crear el cliente de Gemini (%s)", type(error).__name__)
+        return None
+    return _generar(cliente, [PROMPT, "DOCUMENTO:\n" + texto])
+
+
+# Compatibilidad con el nombre anterior.
+clasificar_documento = analizar_archivo

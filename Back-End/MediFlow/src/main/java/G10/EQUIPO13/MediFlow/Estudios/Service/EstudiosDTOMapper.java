@@ -11,6 +11,10 @@ import java.time.LocalDateTime;
 @Component
 public class EstudiosDTOMapper {
 
+private static String recortar(String valor) {
+    return valor != null && valor.length() > 255 ? valor.substring(0, 255) : valor;
+}
+
 public EstudiosEntity toDomain(EstudioRequest estudioRequest, UsuariosEntity medico, PacienteEntity paciente){
 
     EstudiosEntity estudiosEntity = new EstudiosEntity();
@@ -51,9 +55,10 @@ public EstudioResponse toResponse(EstudiosEntity entity){
         }
 
         EstudiosEntity estudiosEntity = new EstudiosEntity();
-        estudiosEntity.setNombre(resultadoTriaje.datosExtraidos().estudioRealizado());
-        estudiosEntity.setDiagnosticoPrincipal(resultadoTriaje.datosExtraidos().diagnosticoPrincipal());
-        estudiosEntity.setCie10Sugerido(resultadoTriaje.datosExtraidos().cie10Sugerido());
+        // Las columnas de estudios son VARCHAR(255): se recorta para no fallar con textos largos de la IA.
+        estudiosEntity.setNombre(recortar(resultadoTriaje.datosExtraidos().estudioRealizado()));
+        estudiosEntity.setDiagnosticoPrincipal(recortar(resultadoTriaje.datosExtraidos().diagnosticoPrincipal()));
+        estudiosEntity.setCie10Sugerido(recortar(resultadoTriaje.datosExtraidos().cie10Sugerido()));
         estudiosEntity.setPaciente(paciente);
         estudiosEntity.setMedico(medico);
 

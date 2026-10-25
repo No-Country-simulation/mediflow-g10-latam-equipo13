@@ -1,73 +1,85 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FileCheck2,
-  ShieldAlert,
-  CheckCircle2,
-  TrendingUp,
-  TrendingDown,
-  Clock,
-  Brain,
-  Users,
-  Activity,
-  Loader2,
   AlertCircle,
-  RefreshCw,
-  ChevronDown,
+  ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
   Download,
+  FileCheck2,
+  FileText,
+  RefreshCw,
+  ShieldAlert,
+  Siren,
   UploadCloud,
 } from 'lucide-react';
-import {
-  Card, CardHeader, CardTitle, CardContent, StatCard, Badge, Button, Dropdown,
-  Skeleton, SkeletonCard, SkeletonStatCard, SkeletonTable, Progress,
-} from '../components/ui';
+import { Card, StatCard, Skeleton, SkeletonCard, SkeletonStatCard, SkeletonTable } from '../components/ui';
+import { rutaDeDocumento, type RutaAgente } from '../components/GrafoAgente';
 import { cn } from '../lib/design-system';
-import { springApi, fastApi, fastapiToUnificado, springToUnificado, type DocumentoUnificado } from '../lib/api';
+import { springApi, springToUnificado, useAuth, type DocumentoUnificado } from '../lib/api';
 import { exportarHistorialJson } from '../lib/exportar';
 
-const priorityColors = {
-  Urgente: 'danger',
-  Rutina: 'success',
-} as const;
+const RUTAS: { ruta: RutaAgente; nombre: string; color: string; clase: string }[] = [
+  { ruta: 'estandar', nombre: 'Flujo estándar', color: '#12b76a', clase: 'bg-success-500' },
+  { ruta: 'urgencia', nombre: 'Emergencias', color: '#f04438', clase: 'bg-danger-500' },
+  { ruta: 'revision_humana', nombre: 'Revisión humana', color: '#f79009', clase: 'bg-warning-500' },
+];
 
-const statusColors = {
-  procesado: 'success',
-  en_revision: 'warning',
-  error: 'danger',
-  pendiente: 'info',
-} as const;
+const claveDia = (fecha: Date) => `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
+
+function hace(fechaIso: string) {
+  const ms = Date.now() - new Date(fechaIso).getTime();
+  if (Number.isNaN(ms)) return '';
+  const min = Math.round(ms / 60000);
+  if (min < 1) return 'ahora';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  return new Date(fechaIso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+}
+
+function Anillo({ valor, etiqueta }: { valor: number; etiqueta: string }) {
+  const id = `anillo-${useId().replace(/:/g, '')}`;
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="flex items-center gap-4 min-w-0 rounded-2xl glass-ink px-5 py-4">
+      <div className="relative shrink-0">
+        <svg viewBox="0 0 72 72" className="w-[72px] h-[72px] -rotate-90" aria-hidden="true">
+          <defs>
+            <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#8080fb" />
+              <stop offset="1" stopColor="#24e0c4" />
+            </linearGradient>
+          </defs>
+          <circle cx="36" cy="36" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
+          <circle cx="36" cy="36" r={r} fill="none" stroke={`url(#${id})`} strokeWidth="7" strokeLinecap="round"
+            strokeDasharray={c} strokeDashoffset={c * (1 - valor)} style={{ transition: 'stroke-dashoffset 1s cubic-bezier(.2,.65,.3,1)' }} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center kpi-number text-[15px] font-bold text-white">{Math.round(valor * 100)}%</span>
+      </div>
+      <p className="min-w-0 text-sm text-white/60 leading-snug">{etiqueta}</p>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [documentos, setDocumentos] = useState<DocumentoUnificado[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('7d');
   const [refreshing, setRefreshing] = useState(false);
 
   const cargarDatos = async () => {
     try {
       setError(null);
-      // Cargar desde Spring Boot (persistencia)
       const springResponse = await springApi.getDocumentos(0, 100);
-      const springDocs = springResponse.content.map(springToUnificado);
-      
-      // También intentar cargar de FastAPI si está disponible
-      let fastapiDocs: DocumentoUnificado[] = [];
-      try {
-        const fastapiList = await fastApi.healthCheck();
-        // FastAPI no tiene endpoint de listado, pero podríamos simular
-      } catch {
-        // FastAPI no disponible, usar solo Spring
-      }
-
-      const allDocs = [...springDocs, ...fastapiDocs];
-      // Ordenar por fecha descendente
+      const allDocs = springResponse.content.map(springToUnificado);
       allDocs.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
       setDocumentos(allDocs);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al cargar datos');
-      console.error('Error loading dashboard:', e);
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Error al cargar datos');
     } finally {
       setCargando(false);
       setRefreshing(false);
@@ -83,85 +95,61 @@ export default function DashboardPage() {
     cargarDatos();
   };
 
-  // Métricas calculadas
   const metrics = useMemo(() => {
     const total = documentos.length;
-    const procesados = documentos.filter(d => d.status === 'procesado').length;
-    const enRevision = documentos.filter(d => d.status === 'en_revision').length;
-    const errores = documentos.filter(d => d.status === 'error').length;
-    const urgentes = documentos.filter(d => d.prioridad === 'Urgente').length;
-    const avgConfidence = documentos.length > 0
-      ? documentos.reduce((sum, d) => sum + d.scoreConfianza, 0) / documentos.length
-      : 0;
-    const autoRouted = documentos.filter(d => !d.requiereAuditoria).length;
-    const auditRate = total > 0 ? ((total - autoRouted) / total) * 100 : 0;
-
-    return { total, procesados, enRevision, errores, urgentes, avgConfidence, autoRouted, auditRate };
+    const procesados = documentos.filter((d) => d.status === 'procesado').length;
+    const enRevision = documentos.filter((d) => d.status === 'en_revision').length;
+    const urgentes = documentos.filter((d) => d.prioridad === 'Urgente').length;
+    const avgConfidence = total > 0 ? documentos.reduce((sum, d) => sum + d.scoreConfianza, 0) / total : 0;
+    const autoRouted = documentos.filter((d) => !d.requiereAuditoria && !d.revision).length;
+    return { total, procesados, enRevision, urgentes, avgConfidence, autoRate: total > 0 ? autoRouted / total : 0 };
   }, [documentos]);
 
-  // Datos para gráficos
-  const chartData = useMemo(() => {
-    // Agrupar por día
-    const byDay = new Map<string, { total: number; procesados: number; revision: number; urgentes: number }>();
-    
-    documentos.forEach(doc => {
-      const day = new Date(doc.fecha).toISOString().split('T')[0];
-      const existing = byDay.get(day) || { total: 0, procesados: 0, revision: 0, urgentes: 0 };
-      existing.total++;
-      if (doc.status === 'procesado') existing.procesados++;
-      if (doc.status === 'en_revision') existing.revision++;
-      if (doc.prioridad === 'Urgente') existing.urgentes++;
-      byDay.set(day, existing);
+  // Actividad de los últimos 7 días (en hora local).
+  const dias = useMemo(() => {
+    const porDia = new Map<string, { procesados: number; revision: number; urgentes: number }>();
+    documentos.forEach((doc) => {
+      const fecha = new Date(doc.fecha);
+      if (Number.isNaN(fecha.getTime())) return;
+      const k = claveDia(fecha);
+      const d = porDia.get(k) ?? { procesados: 0, revision: 0, urgentes: 0 };
+      if (doc.prioridad === 'Urgente') d.urgentes++;
+      else if (doc.status === 'en_revision' || doc.requiereAuditoria) d.revision++;
+      else d.procesados++;
+      porDia.set(k, d);
     });
-
-    // Últimos 7 días
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (6 - i));
-      return date.toISOString().split('T')[0];
-    });
-
-    return days.map(day => {
-      const data = byDay.get(day) || { total: 0, procesados: 0, revision: 0, urgentes: 0 };
-      return {
-        day: new Date(day).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }),
-        ...data,
-      };
+    return Array.from({ length: 7 }, (_, i) => {
+      const fecha = new Date();
+      fecha.setDate(fecha.getDate() - (6 - i));
+      const d = porDia.get(claveDia(fecha)) ?? { procesados: 0, revision: 0, urgentes: 0 };
+      return { etiqueta: fecha.toLocaleDateString('es-CO', { weekday: 'short' }), dia: fecha.getDate(), hoy: i === 6, ...d, total: d.procesados + d.revision + d.urgentes };
     });
   }, [documentos]);
+  const maxDia = Math.max(1, ...dias.map((d) => d.total));
 
-  // Distribución por especialidad
-  const specialtyData = useMemo(() => {
-    const map = new Map<string, number>();
-    documentos.forEach(d => {
-      map.set(d.especialidad, (map.get(d.especialidad) || 0) + 1);
-    });
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
+  const porRuta = useMemo(() => {
+    const conteo: Record<RutaAgente, number> = { estandar: 0, urgencia: 0, revision_humana: 0 };
+    documentos.forEach((d) => conteo[rutaDeDocumento(d)]++);
+    return conteo;
   }, [documentos]);
 
-  // Distribución por tipo de documento
-  const typeData = useMemo(() => {
-    const map = new Map<string, number>();
-    documentos.forEach(d => {
-      map.set(d.tipo, (map.get(d.tipo) || 0) + 1);
+  const contar = (clave: (d: DocumentoUnificado) => string) => {
+    const mapa = new Map<string, number>();
+    documentos.forEach((d) => {
+      const k = clave(d) || 'Sin dato';
+      mapa.set(k, (mapa.get(k) ?? 0) + 1);
     });
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [documentos]);
+    return Array.from(mapa.entries()).map(([nombre, valor]) => ({ nombre, valor })).sort((a, b) => b.valor - a.valor).slice(0, 6);
+  };
+  const destinos = useMemo(() => contar((d) => d.destino), [documentos]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tipos = useMemo(() => contar((d) => d.tipo), [documentos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (cargando) {
     return (
-      <div className="p-6 space-y-6 animate-in">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
-        </div>
+      <div className="p-6 lg:p-8 space-y-6 animate-in">
+        <Skeleton className="h-48 w-full rounded-3xl" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <SkeletonStatCard key={i} />)}
+          {[1, 2, 3, 4].map((i) => <SkeletonStatCard key={i} />)}
         </div>
         <div className="grid lg:grid-cols-3 gap-6">
           <SkeletonCard className="lg:col-span-2" />
@@ -172,367 +160,235 @@ export default function DashboardPage() {
     );
   }
 
+  const hoy = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+  const totalRutas = porRuta.estandar + porRuta.urgencia + porRuta.revision_humana;
+  const circunferencia = 2 * Math.PI * 52;
+  let acumulado = 0;
+
   return (
-    <div className="p-6 space-y-6 animate-in">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold text-neutral-950">Dashboard</h1>
-          <p className="text-neutral-500 text-sm mt-0.5">Resumen en tiempo real del procesamiento de documentos</p>
+    <div className="p-6 lg:p-8 space-y-6 animate-in">
+      {/* Bienvenida */}
+      <section className="bg-aurora rounded-3xl px-7 py-8 lg:px-10 lg:py-10">
+        <div className="absolute inset-0 bg-grid-ink" aria-hidden="true" />
+        <div className="relative grid lg:grid-cols-[1.4fr_1fr] gap-8 items-center">
+          <div>
+            <p className="text-sm text-white/50 first-letter:uppercase">{hoy}</p>
+            <h2 className="mt-2 text-3xl lg:text-[40px] leading-tight font-bold text-white">
+              Hola, <span className="text-gradient-aurora">{user?.nombre ?? 'equipo'}</span>
+            </h2>
+            <p className="mt-3 text-white/60 max-w-lg">
+              {metrics.total === 0
+                ? 'Todavía no hay documentos. Procesa el primero y mira al agente decidir paso a paso.'
+                : `El agente procesó ${metrics.total} documento${metrics.total === 1 ? '' : 's'}: ${metrics.enRevision} esperan revisión humana y ${metrics.urgentes} ${metrics.urgentes === 1 ? 'es urgente' : 'son urgentes'}.`}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/procesar')}
+                className="shine inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-ink-950 bg-white hover:bg-white/90 transition-colors"
+              >
+                <UploadCloud className="w-4 h-4" /> Procesar documento
+              </button>
+              <button
+                type="button"
+                onClick={() => exportarHistorialJson(documentos)}
+                disabled={documentos.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-white/85 glass-ink hover:bg-white/[0.08] transition-colors disabled:opacity-40"
+              >
+                <Download className="w-4 h-4" /> Exportar JSON
+              </button>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl text-white/70 glass-ink hover:bg-white/[0.08] transition-colors"
+                aria-label="Actualizar"
+              >
+                <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+              </button>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2 gap-3">
+            <Anillo valor={metrics.avgConfidence} etiqueta="Confianza promedio" />
+            <Anillo valor={metrics.autoRate} etiqueta="Sin intervención humana" />
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Dropdown
-            trigger={
-              <Button variant="outline" size="sm" leftIcon={<ChevronDown className="w-4 h-4" />}>
-                {timeRange === '24h' ? 'Últimas 24h' : timeRange === '7d' ? 'Últimos 7 días' : 'Últimos 30 días'}
-              </Button>
-            }
-            items={[
-              { label: 'Últimas 24h', onClick: () => setTimeRange('24h') },
-              { label: 'Últimos 7 días', onClick: () => setTimeRange('7d') },
-              { label: 'Últimos 30 días', onClick: () => setTimeRange('30d') },
-            ]}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Download className="w-4 h-4" />}
-            onClick={() => exportarHistorialJson(documentos)}
-            disabled={documentos.length === 0}
-          >
-            Exportar JSON
-          </Button>
-          <Button variant="outline" size="sm" leftIcon={<RefreshCw className="w-4 h-4" />} onClick={handleRefresh} loading={refreshing}>
-            Actualizar
-          </Button>
+      </section>
+
+      {error && (
+        <div className="flex items-center gap-3 rounded-2xl border border-danger-200 bg-danger-50 px-5 py-4 text-sm text-danger-700">
+          <AlertCircle className="w-5 h-5 shrink-0" /> {error}
         </div>
-      </div>
+      )}
 
-      {/* KPI Cards */}
+      {/* Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Documentos"
-          value={metrics.total}
-          icon={<FileCheck2 className="w-5 h-5" />}
-          trend={{ value: 12, positive: true, label: 'vs semana anterior' }}
-          variant="primary"
-        />
-        <StatCard
-          title="Procesados OK"
-          value={metrics.procesados}
-          icon={<CheckCircle2 className="w-5 h-5" />}
-          trend={{ value: 8, positive: true, label: 'vs semana anterior' }}
-          variant="success"
-        />
-        <StatCard
-          title="En Revisión"
-          value={metrics.enRevision}
-          icon={<ShieldAlert className="w-5 h-5" />}
-          trend={{ value: 5, positive: false, label: 'vs semana anterior' }}
-          variant="warning"
-        />
-        <StatCard
-          title="Urgentes"
-          value={metrics.urgentes}
-          icon={<Activity className="w-5 h-5" />}
-          trend={{ value: 3, positive: false, label: 'vs semana anterior' }}
-          variant="danger"
-        />
+        <StatCard title="Documentos" value={metrics.total} icon={<FileCheck2 className="w-5 h-5" />} variant="primary" onClick={() => navigate('/historial')} />
+        <StatCard title="Procesados" value={metrics.procesados} icon={<CheckCircle2 className="w-5 h-5" />} variant="success" onClick={() => navigate('/colas')} />
+        <StatCard title="En revisión humana" value={metrics.enRevision} icon={<ShieldAlert className="w-5 h-5" />} variant="warning" onClick={() => navigate('/auditoria')} />
+        <StatCard title="Urgentes" value={metrics.urgentes} icon={<Siren className="w-5 h-5" />} variant="danger" onClick={() => navigate('/colas')} />
       </div>
 
-      {/* Secondary Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card padding="lg" variant="default">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-neutral-500">Confianza Promedio</p>
-              <p className="text-3xl font-extrabold text-neutral-950 mt-1">
-                {Math.round(metrics.avgConfidence * 100)}%
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-              <Brain className="w-6 h-6" />
-            </div>
-          </div>
-          <Progress value={metrics.avgConfidence * 100} variant="brand" size="sm" className="mt-3" />
-        </Card>
-
-        <Card padding="lg" variant="default">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-neutral-500">Enrutamiento Automático</p>
-              <p className="text-3xl font-extrabold text-neutral-950 mt-1">
-                {metrics.total > 0 ? Math.round((metrics.autoRouted / metrics.total) * 100) : 0}%
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-success-50 text-success-600 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-          </div>
-          <Progress value={(metrics.autoRouted / (metrics.total || 1)) * 100} variant="success" size="sm" className="mt-3" />
-        </Card>
-
-        <Card padding="lg" variant="default">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-neutral-500">Tasa Auditoría</p>
-              <p className="text-3xl font-extrabold text-neutral-950 mt-1">
-                {metrics.auditRate.toFixed(1)}%
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-warning-50 text-warning-600 flex items-center justify-center">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-          </div>
-          <Progress value={metrics.auditRate} variant="warning" size="sm" className="mt-3" />
-        </Card>
-
-        <Card padding="lg" variant="default">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-neutral-500">Errores</p>
-              <p className="text-3xl font-extrabold text-neutral-950 mt-1">{metrics.errores}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-danger-50 text-danger-600 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-          </div>
-          <p className="text-xs text-neutral-500 mt-3">
-            {metrics.total > 0 ? ((metrics.errores / metrics.total) * 100).toFixed(1) : 0}% de documentos
-          </p>
-        </Card>
-      </div>
-
-      {/* Charts Row */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Documentos por día */}
-        <Card padding="lg" variant="default" className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle subtitle="Volumen de procesamiento diario">Documentos por Día</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 flex items-end justify-around gap-2">
-              {chartData.map((day, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 min-w-0">
-                  <div className="w-full flex items-end justify-around gap-1 h-48">
-                    <div
-                      className="w-full rounded-t bg-brand-500/20 transition-all hover:bg-brand-500/40"
-                      style={{ height: `${Math.max((day.procesados / (Math.max(...chartData.map(d => d.total), 1))) * 100, 4)}%` }}
-                      title={`Procesados: ${day.procesados}`}
-                    />
-                    <div
-                      className="w-full rounded-t bg-warning-500/20 transition-all hover:bg-warning-500/40"
-                      style={{ height: `${Math.max((day.revision / (Math.max(...chartData.map(d => d.total), 1))) * 100, 4)}%` }}
-                      title={`En revisión: ${day.revision}`}
-                    />
-                    <div
-                      className="w-full rounded-t bg-danger-500/20 transition-all hover:bg-danger-500/40"
-                      style={{ height: `${Math.max((day.urgentes / (Math.max(...chartData.map(d => d.total), 1))) * 100, 4)}%` }}
-                      title={`Urgentes: ${day.urgentes}`}
-                    />
-                  </div>
-                  <span className="text-xs text-neutral-500 text-center w-20">{day.day}</span>
-                </div>
-              ))}
+        {/* Actividad */}
+        <Card padding="lg" className="lg:col-span-2">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-ink-900">Actividad del agente</h3>
+              <p className="text-sm text-neutral-500">Documentos de los últimos 7 días, por ruta</p>
             </div>
-            <div className="flex items-center gap-4 mt-4 text-sm">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-brand-500/20" />
-                <span className="text-neutral-600">Procesados</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-warning-500/20" />
-                <span className="text-neutral-600">Revisión</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-danger-500/20" />
-                <span className="text-neutral-600">Urgentes</span>
-              </div>
+            <div className="flex flex-wrap gap-3 text-xs text-neutral-500">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-b from-brand-500 to-aqua-500" />Estándar</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-warning-500" />Revisión</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-danger-500" />Urgente</span>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Especialidades */}
-        <Card padding="lg" variant="default">
-          <CardHeader>
-            <CardTitle subtitle="Top 6 por volumen">Por Especialidad</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {specialtyData.length === 0 ? (
-                <div className="text-center py-8 text-neutral-500">Sin datos</div>
-              ) : (
-                specialtyData.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-neutral-600 w-8">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-neutral-900 truncate">{item.name}</p>
-                      <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-brand-500 rounded-full"
-                          style={{ width: `${(item.value / specialtyData[0].value) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold text-neutral-900 tabular-nums">{item.value}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Second Charts Row */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Tipos de documento */}
-        <Card padding="lg" variant="default">
-          <CardHeader>
-            <CardTitle subtitle="Distribución por tipo">Tipos de Documento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {typeData.length === 0 ? (
-                <div className="text-center py-8 text-neutral-500">Sin datos</div>
-              ) : (
-                typeData.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Badge variant="brand" size="sm" className="w-32 text-left justify-start">
-                      {item.name}
-                    </Badge>
-                    <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-brand-500 rounded-full transition-all duration-500"
-                        style={{ width: `${(item.value / typeData[0].value) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-semibold text-neutral-900 tabular-nums w-12 text-right">{item.value}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Prioridad vs Estado */}
-        <Card padding="lg" variant="default">
-          <CardHeader>
-            <CardTitle subtitle="Matriz de prioridad vs estado">Prioridad × Estado</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-neutral-400 text-xs uppercase tracking-wide">
-                    <th className="pb-2 font-medium"></th>
-                    <th className="pb-2 font-medium text-center">Procesados</th>
-                    <th className="pb-2 font-medium text-center">En Revisión</th>
-                    <th className="pb-2 font-medium text-center">Errores</th>
-                    <th className="pb-2 font-medium text-center">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(['Urgente', 'Rutina'] as const).map(priority => {
-                    const pDocs = documentos.filter(d => d.prioridad === priority);
-                    const processed = pDocs.filter(d => d.status === 'procesado').length;
-                    const review = pDocs.filter(d => d.status === 'en_revision').length;
-                    const errors = pDocs.filter(d => d.status === 'error').length;
-                    const total = pDocs.length;
-                    return (
-                      <tr key={priority} className="border-t border-neutral-100">
-                        <td className="py-2 font-medium text-neutral-900">
-                          <Badge variant={priorityColors[priority]} dot size="sm">{priority}</Badge>
-                        </td>
-                        <td className="py-2 text-center text-success-600 font-semibold">{processed}</td>
-                        <td className="py-2 text-center text-warning-600 font-semibold">{review}</td>
-                        <td className="py-2 text-center text-danger-600 font-semibold">{errors}</td>
-                        <td className="py-2 text-center font-semibold text-neutral-900">{total}</td>
-                      </tr>
-                    );
-                  })}
-                  <tr className="border-t-2 border-neutral-200 font-bold">
-                    <td className="py-2 text-neutral-900">Total</td>
-                    <td className="py-2 text-center text-success-600">{metrics.procesados}</td>
-                    <td className="py-2 text-center text-warning-600">{metrics.enRevision}</td>
-                    <td className="py-2 text-center text-danger-600">{metrics.errores}</td>
-                    <td className="py-2 text-center text-neutral-900">{metrics.total}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Documents Table */}
-      <Card variant="default">
-        <CardHeader>
-          <CardTitle subtitle={`${documentos.length} documentos totales`}>Documentos Recientes</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/historial')}>
-              Ver todo
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => navigate('/procesar')}>
-              <UploadCloud className="w-4 h-4" />
-              Nuevo
-            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {documentos.length === 0 ? (
-            <div className="text-center py-12">
-              <FileCheck2 className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
-              <p className="text-neutral-500">No hay documentos procesados aún</p>
-              <Button className="mt-4" onClick={() => navigate('/procesar')}>
-                Procesar primer documento
-              </Button>
+          <div className="mt-6 h-56 grid grid-cols-7 gap-3 items-end">
+            {dias.map((d) => (
+              <div key={`${d.etiqueta}-${d.dia}`} className="flex flex-col items-center gap-2 h-full justify-end">
+                <span className={cn('kpi-number text-xs font-semibold', d.total ? 'text-ink-900' : 'text-neutral-300')}>{d.total}</span>
+                <div className="w-full max-w-[44px] flex flex-col-reverse rounded-lg overflow-hidden bg-neutral-100" style={{ height: `${Math.max((d.total / maxDia) * 100, 4)}%` }}
+                  title={`${d.procesados} estándar · ${d.revision} revisión · ${d.urgentes} urgentes`}>
+                  <div className="bg-gradient-to-t from-brand-500 to-aqua-400" style={{ flexGrow: d.procesados }} />
+                  <div className="bg-warning-500" style={{ flexGrow: d.revision }} />
+                  <div className="bg-danger-500" style={{ flexGrow: d.urgentes }} />
+                </div>
+                <span className={cn('text-xs capitalize', d.hoy ? 'font-semibold text-brand-600' : 'text-neutral-500')}>
+                  {d.hoy ? 'Hoy' : `${d.etiqueta.replace('.', '')} ${d.dia}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Rutas del agente */}
+        <Card padding="lg">
+          <h3 className="text-lg font-semibold text-ink-900">Rutas del agente</h3>
+          <p className="text-sm text-neutral-500">Cómo se decidió cada documento</p>
+          <div className="mt-4 flex items-center gap-6">
+            <div className="relative shrink-0">
+              <svg viewBox="0 0 120 120" className="w-32 h-32 -rotate-90" aria-hidden="true">
+                <circle cx="60" cy="60" r="52" fill="none" stroke="#f1f3f7" strokeWidth="14" />
+                {totalRutas > 0 &&
+                  RUTAS.map((r) => {
+                    const fraccion = porRuta[r.ruta] / totalRutas;
+                    const segmento = (
+                      <circle key={r.ruta} cx="60" cy="60" r="52" fill="none" stroke={r.color} strokeWidth="14"
+                        strokeDasharray={`${fraccion * circunferencia} ${circunferencia}`} strokeDashoffset={-acumulado * circunferencia} />
+                    );
+                    acumulado += fraccion;
+                    return segmento;
+                  })}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="kpi-number text-2xl font-bold text-ink-900">{totalRutas}</span>
+                <span className="text-[11px] text-neutral-500">documentos</span>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full datatable">
-                <thead>
-                  <tr>
-                    <th className="w-32">ID</th>
-                    <th>Tipo</th>
-                    <th>Especialidad</th>
-                    <th className="w-28">Prioridad</th>
-                    <th className="w-28">Estado</th>
-                    <th className="w-36">Confianza</th>
-                    <th className="w-40">Destino</th>
-                    <th className="w-32">Fecha</th>
-                    <th className="w-12"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {documentos.slice(0, 10).map((doc) => (
-                    <tr key={doc.documentoId} className="table-row-hover" onClick={() => navigate(`/documentos/${doc.documentoId}`, { state: { documento: doc } })}>
-                      <td className="font-mono text-sm text-neutral-900">{doc.documentoId.slice(0, 12)}…</td>
-                      <td>
-                        <Badge variant="brand" size="sm">{doc.tipo}</Badge>
-                      </td>
-                      <td className="text-neutral-600">{doc.especialidad}</td>
-                      <td><Badge variant={priorityColors[doc.prioridad]} dot size="sm">{doc.prioridad}</Badge></td>
-                      <td><Badge variant={statusColors[doc.status as keyof typeof statusColors] || 'neutral'} dot size="sm">{doc.status.replace('_', ' ')}</Badge></td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <Progress value={doc.scoreConfianza * 100} size="sm" className="w-24" variant={doc.scoreConfianza >= 0.8 ? 'success' : doc.scoreConfianza >= 0.6 ? 'warning' : 'danger'} />
-                          <span className="text-xs font-semibold tabular-nums">{Math.round(doc.scoreConfianza * 100)}%</span>
-                        </div>
-                      </td>
-                      <td className="text-sm text-neutral-600 truncate max-w-[140px]">{doc.destino || '—'}</td>
-                      <td className="text-sm text-neutral-500 whitespace-nowrap">{new Date(doc.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-                      <td>
-                        <Button variant="ghost" size="xs" className="p-1">
-                          <Activity className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <ul className="flex-1 space-y-3">
+              {RUTAS.map((r) => (
+                <li key={r.ruta} className="flex items-center gap-2.5 text-sm">
+                  <span className={cn('w-2.5 h-2.5 rounded-full', r.clase)} />
+                  <span className="text-neutral-600">{r.nombre}</span>
+                  <span className="ml-auto kpi-number font-semibold text-ink-900">{porRuta[r.ruta]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {[
+          { titulo: 'Colas de destino', sub: 'A dónde se enviaron los documentos', datos: destinos, barra: 'from-brand-500 to-aqua-400', ir: '/colas' },
+          { titulo: 'Tipos de documento', sub: 'Lo que clasificó la IA', datos: tipos, barra: 'from-ink-700 to-brand-500', ir: '/historial' },
+        ].map((bloque) => (
+          <Card key={bloque.titulo} padding="lg">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-ink-900">{bloque.titulo}</h3>
+                <p className="text-sm text-neutral-500">{bloque.sub}</p>
+              </div>
+              <button type="button" onClick={() => navigate(bloque.ir)} className="p-1.5 rounded-lg text-neutral-400 hover:text-brand-600 hover:bg-brand-50" aria-label={`Ver ${bloque.titulo}`}>
+                <ArrowUpRight className="w-4 h-4" />
+              </button>
             </div>
-          )}
-        </CardContent>
+            <div className="mt-5 space-y-3.5">
+              {bloque.datos.length === 0 ? (
+                <p className="py-6 text-center text-sm text-neutral-400">Sin datos todavía</p>
+              ) : (
+                bloque.datos.map((item) => (
+                  <div key={item.nombre}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-700 truncate pr-3">{item.nombre.replace(/_/g, ' ')}</span>
+                      <span className="kpi-number font-semibold text-ink-900">{item.valor}</span>
+                    </div>
+                    <div className="mt-1.5 h-2 rounded-full bg-neutral-100 overflow-hidden">
+                      <div className={cn('h-full rounded-full bg-gradient-to-r transition-all duration-700', bloque.barra)}
+                        style={{ width: `${(item.valor / bloque.datos[0].valor) * 100}%` }} />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Recientes */}
+      <Card padding="none">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-ink-900">Documentos recientes</h3>
+            <p className="text-sm text-neutral-500">Los últimos que pasaron por el agente</p>
+          </div>
+          <button type="button" onClick={() => navigate('/historial')} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700">
+            Ver historial <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+        {documentos.length === 0 ? (
+          <div className="px-6 pb-10 pt-4 text-center">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-50 to-aqua-50 text-brand-600 flex items-center justify-center ring-1 ring-brand-100">
+              <FileText className="w-6 h-6" />
+            </div>
+            <p className="mt-4 text-neutral-500">No hay documentos procesados aún.</p>
+            <button type="button" onClick={() => navigate('/procesar')} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700">
+              Procesar el primero <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <ul className="divide-y divide-neutral-100 border-t border-neutral-100">
+            {documentos.slice(0, 8).map((doc) => {
+              const ruta = RUTAS.find((r) => r.ruta === rutaDeDocumento(doc)) ?? RUTAS[0];
+              return (
+                <li key={String(doc.id)}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/documentos/${doc.id}`, { state: { documento: doc } })}
+                    className="w-full grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_1.4fr_1fr_8rem_6rem] items-center gap-4 px-6 py-3.5 text-left hover:bg-neutral-50/80 transition-colors"
+                  >
+                    <span className="relative w-10 h-10 rounded-xl bg-neutral-100 text-neutral-500 flex items-center justify-center">
+                      <FileText className="w-[18px] h-[18px]" />
+                      <span className={cn('absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-white', ruta.clase)} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-ink-900 truncate">{doc.tipo}</span>
+                      <span className="block text-xs text-neutral-500 truncate">{doc.paciente.nombre || 'Paciente sin identificar'}</span>
+                    </span>
+                    <span className="hidden md:block text-xs font-mono text-neutral-600 truncate">{doc.destino || '—'}</span>
+                    <span className="hidden md:flex items-center gap-2">
+                      <span className="flex-1 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+                        <span className={cn('block h-full rounded-full', doc.scoreConfianza >= 0.8 ? 'bg-success-500' : doc.scoreConfianza >= 0.6 ? 'bg-warning-500' : 'bg-danger-500')}
+                          style={{ width: `${Math.round(doc.scoreConfianza * 100)}%` }} />
+                      </span>
+                      <span className="kpi-number text-xs font-semibold text-ink-900 w-8 text-right">{Math.round(doc.scoreConfianza * 100)}%</span>
+                    </span>
+                    <span className="text-xs text-neutral-400 text-right whitespace-nowrap">{hace(doc.fecha)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Card>
     </div>
   );
