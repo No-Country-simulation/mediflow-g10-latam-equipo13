@@ -1,112 +1,111 @@
-# Despliegue en la nube: Vercel + Railway
+# Despliegue gratis: Vercel (frontend) + VM Always Free de OCI (backend)
 
 ```
-Navegador ──► Vercel (frontend)  ──/spring/*──►  Railway: backend (Spring Boot, URL pública HTTPS)
-                                                    ├─► Railway: fastapi (motor de IA, red privada)
-                                                    └─► Railway: MySQL (red privada, disco persistente)
+Navegador ──► Vercel (frontend) ──/spring/*──► VM de OCI: Caddy (HTTPS) ──► Spring Boot
+                                                                         ├─► FastAPI (red interna)
+                                                                         └─► MySQL (red interna)
 ```
 
-- **Vercel** sirve el frontend (`mediflow-frontend/vercel.json`) y reenvía `/spring/*` al backend.
-- **Railway** corre los tres servicios del backend. Solo Spring tiene URL pública: FastAPI y MySQL quedan en la
-  red privada, así nadie puede usar el motor de IA (ni gastar la cuota de Gemini) sin pasar por el login.
-- En producción el modo **Directo** del frontend se desactiva solo, porque el motor de IA no es accesible
-  desde el navegador. Se procesa en modo **Persistente**.
+- **Vercel** sirve el frontend (`mediflow-frontend/vercel.json`) y reenvía `/spring/*` a la VM.
+- **La VM** corre el mismo Docker Compose del proyecto, más **Caddy**, que saca el certificado HTTPS gratis.
+  Solo la API de Spring queda expuesta: FastAPI y MySQL quedan en la red interna, así nadie usa el motor de IA
+  (ni gasta la cuota de Gemini) sin pasar por el login.
+- En producción el modo **Directo** del frontend se desactiva solo; se procesa en modo **Persistente**.
+- Costo: **0**. La VM Ampere de la capa Always Free de OCI no vence.
 
-## 1. Proyecto en Railway
+## 1. Crear la VM en OCI
 
-1. Entra a [railway.com](https://railway.com) con tu cuenta de GitHub → **New Project → Empty Project**.
-2. El repositorio es de la organización *No-Country-simulation*: para desplegar desde GitHub, la app de Railway
-   debe estar autorizada en esa organización (puede requerir aprobación de un administrador). Sin esa
-   autorización, ver [Desplegar sin conectar GitHub](#desplegar-sin-conectar-github).
+1. En [cloud.oracle.com](https://cloud.oracle.com), menú ☰ → **Compute → Instances → Create instance**.
+2. **Name:** `mediflow`.
+3. **Image and shape → Edit:**
+   - **Image:** Canonical **Ubuntu 24.04**.
+   - **Shape:** **Ampere → VM.Standard.A1.Flex**, **2 OCPU y 12 GB** (dentro de la capa gratis, que llega a 4/24).
+4. **Networking:** deja crear una VCN y una subred pública nuevas, con **Assign a public IPv4 address** activado.
+5. **Add SSH keys:** **Generate a key pair for me → Save private key**. Guarda el archivo (por ejemplo en
+   `C:\Users\<tu usuario>\.ssh\mediflow-oci.key`). Sin esa llave no se puede entrar a la VM.
+6. **Create.** Cuando quede en **Running**, copia la **Public IP address**.
 
-## 2. Base de datos
+Si aparece **"Out of capacity"**: cambia el **Availability domain** (AD-2, AD-3), prueba con 1 OCPU y 6 GB, o
+reintenta más tarde. Es frecuente en la capa gratis y no tiene que ver con tu cuenta.
 
-**+ New → Database → MySQL.** Railway la crea con disco persistente y sus propias credenciales. Las tablas las
-crea Spring al arrancar (Flyway), con la base vacía.
+## 2. Abrir los puertos 80 y 443
 
-## 3. Servicio `fastapi` (motor de IA, privado)
+En la página de la instancia → **Subnet** (enlace) → **Security Lists → Default Security List → Add Ingress Rules**:
 
-**+ New → GitHub Repo →** este repositorio. En **Settings**:
+| Source CIDR | IP Protocol | Destination Port Range |
+|---|---|---|
+| `0.0.0.0/0` | TCP | `80` |
+| `0.0.0.0/0` | TCP | `443` |
 
-- **Nombre del servicio:** `fastapi` (Spring lo busca por ese nombre).
-- **Root Directory:** `Backend_FastAPI` (usa su `Dockerfile`).
-- **No** generes dominio público.
+El 22 (SSH) ya viene abierto. El firewall interno de la VM lo abre el script del paso 3.
 
-| Variable | Valor |
-|---|---|
-| `UVICORN_HOST` | `::` (escucha por IPv6, que usa la red privada de Railway) |
-| `GEMINI_API_KEY` | Clave de Google Gemini |
-| `GEMINI_MODEL` | `gemini-3.8-flash` |
-| `OCI_USER` | Línea `user=` del archivo `config` de OCI (opcional, igual que las siguientes) |
-| `OCI_TENANCY` | Línea `tenancy=` |
-| `OCI_FINGERPRINT` | Línea `fingerprint=` |
-| `OCI_REGION` | Línea `region=` |
-| `OCI_KEY_CONTENT` | Contenido completo del archivo `.pem` de la llave privada (con sus líneas `BEGIN`/`END`). Si el panel no acepta varias líneas, escribe `\n` donde van los saltos |
-| `ALERTA_WEBHOOK_URL` | Webhook de Slack, Discord o n8n para los casos urgentes (opcional) |
+## 3. Instalar MediFlow en la VM
 
-Sin las variables de OCI el agente funciona igual y solo omite el guardado en los buckets.
-
-## 4. Servicio `backend` (Spring Boot, público)
-
-**+ New → GitHub Repo →** el mismo repositorio. En **Settings**:
-
-- **Nombre del servicio:** `backend` · **Root Directory:** `Back-End/MediFlow`.
-- **Networking → Generate Domain** con el puerto que detecta Railway (Spring escucha en `PORT`, por defecto 8080).
-  Da una URL `https://backend-xxxx.up.railway.app` con HTTPS incluido.
-
-| Variable | Valor (copiar tal cual: Railway reemplaza lo de `${{…}}`) |
-|---|---|
-| `DB_URL` | `jdbc:mysql://${{MySQL.MYSQLHOST}}:${{MySQL.MYSQLPORT}}/${{MySQL.MYSQLDATABASE}}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC` |
-| `DB_USER` | `${{MySQL.MYSQLUSER}}` |
-| `DB_PASSWORD` | `${{MySQL.MYSQLPASSWORD}}` |
-| `PYTHON_URL` | `http://${{fastapi.RAILWAY_PRIVATE_DOMAIN}}:8000` |
-| `JWT_SECRET` | 48 bytes aleatorios en base64 (ver abajo) |
-| `MEDIFLOW_ADMIN_USER` | Usuario del administrador inicial |
-| `MEDIFLOW_ADMIN_PASSWORD` | Contraseña del administrador inicial (mínimo 8 caracteres) |
-
-Para generar `JWT_SECRET` en tu equipo (no lo pegues en chats ni en el repositorio):
-
-```bash
-openssl rand -base64 48
-```
-
-En Windows PowerShell 5.1:
+Desde tu equipo, entra por SSH (en Windows, PowerShell):
 
 ```powershell
-$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+ssh -i C:\Users\<tu usuario>\.ssh\mediflow-oci.key ubuntu@<IP-PUBLICA>
 ```
 
-Comprobación: `https://backend-xxxx.up.railway.app/swagger-ui/index.html` debe abrir la documentación de la API.
+Si Windows reclama permisos de la llave ("UNPROTECTED PRIVATE KEY FILE"):
 
-## 5. Conectar Vercel con el backend
+```powershell
+icacls C:\Users\<tu usuario>\.ssh\mediflow-oci.key /inheritance:r /grant:r "$($env:USERNAME):R"
+```
 
-En `mediflow-frontend/vercel.json`, agrega esta regla **al inicio** de `rewrites` (con la URL real de Railway):
+Ya en la VM:
+
+```bash
+git clone -b main https://github.com/No-Country-simulation/mediflow-g10-latam-equipo13.git mediflow
+cd mediflow
+bash scripts/instalar-servidor.sh
+```
+
+El script instala Docker, abre el firewall de la VM y te pide:
+
+- **Dominio:** propone `<ip-con-guiones>.sslip.io`, una dirección gratis que apunta a la IP de la VM. Acepta con Enter.
+- **Usuario y contraseña del administrador inicial** de MediFlow.
+- **Clave de Google Gemini.**
+
+Las contraseñas de la base y el secreto del JWT se generan al azar. Todo queda en `mediflow/.env`, que solo
+puede leer tu usuario de la VM y nunca va al repositorio. Al final debe decir
+**"Listo: https://…sslip.io/spring/ responde"**. La primera vez tarda varios minutos (compila Spring).
+
+Para actualizar después de un cambio en `main`: `cd mediflow && bash scripts/instalar-servidor.sh`.
+
+### OCI Object Storage (opcional)
+
+Sin configurarlo, el agente funciona igual y solo omite los buckets. Para activarlo, agrega a `mediflow/.env`
+las cinco variables `OCI_USER`, `OCI_TENANCY`, `OCI_FINGERPRINT`, `OCI_REGION` y `OCI_KEY_CONTENT` (ver
+`.env.example`) y vuelve a correr el script.
+
+## 4. Conectar Vercel con la VM
+
+En `mediflow-frontend/vercel.json`, agrega esta regla **al inicio** de `rewrites` (el script la imprime con tu
+dominio):
 
 ```json
-{ "source": "/spring/:ruta*", "destination": "https://backend-xxxx.up.railway.app/:ruta*" },
+{ "source": "/spring/:ruta*", "destination": "https://<ip-con-guiones>.sslip.io/spring/:ruta*" },
 ```
 
 Haz push a `main`: Vercel publica solo. Prueba el login con el administrador inicial y los tres casos de prueba.
 
 Si los análisis largos de Gemini (1 a 5 minutos cuando está saturado) se cortan en el proxy de Vercel, la
-alternativa es que el navegador llame directo a Railway: variable `VITE_SPRING_BOOT_URL` en el proyecto de Vercel
-con la URL del backend, y en Spring permitir el origen del sitio de Vercel (CORS).
+alternativa es que el navegador llame directo a la VM: variable `VITE_SPRING_BOOT_URL` en el proyecto de Vercel
+con `https://<dominio>/spring` y, en Spring, permitir el origen del sitio de Vercel (CORS).
 
-## Desplegar sin conectar GitHub
+## Problemas frecuentes
 
-Con la CLI de Railway se sube el código desde tu equipo (como `vercel` con el frontend):
-
-```bash
-npx @railway/cli login
-npx @railway/cli link                      # elige el proyecto
-cd Backend_FastAPI    && npx @railway/cli up --service fastapi
-cd ../Back-End/MediFlow && npx @railway/cli up --service backend
-```
-
-Los servicios y las variables se crean igual que arriba, desde el panel.
+| Síntoma | Qué revisar |
+|---|---|
+| El script se queda esperando y no dice "Listo" | `sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backend caddy` |
+| Caddy no obtiene el certificado | Que los puertos 80 y 443 estén abiertos en la Security List (paso 2) |
+| No conecta por SSH | Usuario `ubuntu`, la IP pública correcta y la llave descargada al crear la VM |
 
 ## Seguridad
 
-- Las claves (Gemini, OCI, JWT, administrador) se escriben solo en el panel de Railway: nunca en el repositorio.
+- Las claves (Gemini, OCI, administrador) se escriben solo en la terminal de la VM: nunca en el repositorio.
 - Usa documentos de prueba con datos inventados: los archivos se envían a un servicio externo de IA.
 - Al terminar el hackathon, rota las claves de Gemini y OCI.
+- El código también acepta plataformas sin archivos (OCI por variables, puerto en `PORT`), por si algún día
+  se mueve el backend a otro proveedor.

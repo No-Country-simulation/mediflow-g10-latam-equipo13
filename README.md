@@ -189,16 +189,11 @@ cd Back-End/MediFlow && ./mvnw test
 cd mediflow-frontend && npm run typecheck && npm run build
 ```
 
-## Despliegue en la nube (Vercel + Railway)
+## Despliegue gratis (Vercel + VM Always Free de OCI)
 
-Frontend en Vercel y backend (Spring, FastAPI y MySQL) en Railway, con solo Spring expuesto a internet.
-Paso a paso, variables y conexión entre ambos en [`DESPLIEGUE.md`](./DESPLIEGUE.md).
-
-## Despliegue en OCI Compute
-
-1. Crea una VM Always Free (Ampere A1 o E2.1.Micro) con Ubuntu e instala Docker.
-2. Clona el repositorio, crea `.env` y copia la carpeta de configuración de OCI fuera del repositorio.
-3. `docker compose up -d --build` y abre el puerto 3000 (o un 80/443 con proxy) en la Security List de la VCN.
+Frontend en Vercel y backend (Spring, FastAPI y MySQL) en una VM gratuita de OCI con Docker Compose y Caddy
+(HTTPS automático), con solo la API de Spring expuesta a internet. `scripts/instalar-servidor.sh` deja la VM
+lista. Paso a paso en [`DESPLIEGUE.md`](./DESPLIEGUE.md).
 
 ## Estructura del repositorio
 
