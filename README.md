@@ -189,6 +189,11 @@ cd Back-End/MediFlow && ./mvnw test
 cd mediflow-frontend && npm run typecheck && npm run build
 ```
 
+## Despliegue en la nube (Vercel + Railway)
+
+Frontend en Vercel y backend (Spring, FastAPI y MySQL) en Railway, con solo Spring expuesto a internet.
+Paso a paso, variables y conexión entre ambos en [`DESPLIEGUE.md`](./DESPLIEGUE.md).
+
 ## Despliegue en OCI Compute
 
 1. Crea una VM Always Free (Ampere A1 o E2.1.Micro) con Ubuntu e instala Docker.
