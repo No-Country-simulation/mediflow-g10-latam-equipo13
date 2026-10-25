@@ -10,6 +10,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -20,6 +21,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,12 +35,32 @@ public class AIClient {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private final RestClient restClient;
+    /** Solo para la consulta de estado: no debe colgarse los minutos que se le dan a Gemini. */
+    private final RestClient restClientRapido;
 
     public AIClient(
             RestClient.Builder builder,
             @Value("${python.url}") String baseUrl
     ) {
+        SimpleClientHttpRequestFactory rapida = new SimpleClientHttpRequestFactory();
+        rapida.setConnectTimeout(Duration.ofSeconds(3));
+        rapida.setReadTimeout(Duration.ofSeconds(5));
+        this.restClientRapido = builder.clone().baseUrl(baseUrl).requestFactory(rapida).build();
         this.restClient = builder.baseUrl(baseUrl).build();
+    }
+
+    /**
+     * ¿Responde el agente? GET /salud en 5 s como máximo; nunca lanza excepciones.
+     * En producción el motor de IA es privado: solo Spring lo alcanza, así que el frontend pregunta aquí.
+     */
+    public boolean motorDisponible() {
+        try {
+            restClientRapido.get().uri("/salud").retrieve().toBodilessEntity();
+            return true;
+        } catch (RestClientException e) {
+            log.warn("El agente de IA no respondió a la consulta de estado: {}", e.getClass().getSimpleName());
+            return false;
+        }
     }
 
     /**
