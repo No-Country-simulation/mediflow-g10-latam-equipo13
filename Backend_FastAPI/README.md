@@ -78,6 +78,7 @@ Variables de entorno utilizadas por la configuración actual:
 |---|---|
 | `GEMINI_API_KEY` | Clave de acceso a Google Gemini. |
 | `GEMINI_MODEL` | Modelo de Gemini (por defecto `gemini-3.8-flash`). |
+| `GEMINI_MODELOS_RESPALDO` | Modelos, separados por comas, que se prueban al instante si el principal está saturado (503/429) o ya no existe (404). Por defecto `gemini-3.6-flash,gemini-3.5-flash`; vacío lo desactiva. |
 | `OCI_CONFIG_FILE` | Ruta del archivo de configuración de OCI dentro del contenedor. Si no existe, se omite OCI. |
 | `OCI_PROFILE` | Perfil de OCI. La configuración utilizada en el entorno de MediFlow usa `MediFlowBackend`. |
 | `OCI_DESHABILITADO` | `true` para no usar OCI aunque haya configuración (pruebas). |
