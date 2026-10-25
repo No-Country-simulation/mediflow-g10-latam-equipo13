@@ -37,6 +37,7 @@ crea Spring al arrancar (Flyway), con la base vacía.
 | `UVICORN_HOST` | `::` (escucha por IPv6, que usa la red privada de Railway) |
 | `GEMINI_API_KEY` | Clave de Google Gemini |
 | `GEMINI_MODEL` | `gemini-3.8-flash` |
+| `GEMINI_MODELOS_RESPALDO` | Opcional. Por defecto `gemini-3.6-flash,gemini-3.5-flash`: se usan al instante si el principal está saturado |
 | `OCI_USER` | Línea `user=` del archivo `config` de OCI (opcional, igual que las siguientes) |
 | `OCI_TENANCY` | Línea `tenancy=` |
 | `OCI_FINGERPRINT` | Línea `fingerprint=` |
