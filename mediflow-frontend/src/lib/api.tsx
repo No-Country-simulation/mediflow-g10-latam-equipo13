@@ -79,14 +79,14 @@ export function normalizarSesion(data: Record<string, unknown>): { token: string
 }
 
 /**
- * Una respuesta HTML en una ruta relativa nunca viene del backend (Spring y FastAPI responden JSON o vacío):
- * es la página del hosting (p. ej. Vercel) porque ese despliegue no tiene el backend conectado.
+ * Un error en texto plano o HTML en una ruta relativa nunca viene del backend (Spring y FastAPI responden JSON
+ * o vacío): es la página del hosting (Vercel responde "404 text/plain") porque el despliegue no tiene backend.
  */
-const esPaginaDelHosting = (response: Response) => (response.headers.get('content-type') ?? '').includes('text/html');
+const esPaginaDelHosting = (response: Response) => /^text\/(html|plain)/.test(response.headers.get('content-type') ?? '');
 
 /**
  * Con un proxy (Vite, nginx o Vercel; URL relativa), si el backend está apagado el proxy responde 500/502/504
- * con el cuerpo vacío, o el hosting devuelve su propia página HTML. Un error real del backend trae cuerpo JSON.
+ * con el cuerpo vacío, o el hosting devuelve su propia página de error. Un error real del backend trae cuerpo JSON.
  */
 async function backendApagado(response: Response, baseUrl: string): Promise<boolean> {
   if (!baseUrl.startsWith('/')) return false;
@@ -995,7 +995,7 @@ async function responde(url: string): Promise<boolean> {
   try {
     if (url.startsWith('/')) {
       // Mismo origen (proxy): si el destino está caído el proxy responde 5xx; si el despliegue no tiene
-      // backend conectado, el hosting devuelve su página HTML.
+      // backend conectado, el hosting devuelve su propia página de error.
       const r = await fetch(url, { signal: ctrl.signal });
       return r.status < 500 && !esPaginaDelHosting(r);
     }
