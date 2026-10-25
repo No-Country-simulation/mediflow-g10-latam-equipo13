@@ -660,6 +660,11 @@ class ApiClient {
     }
   }
 
+  // ---- Estado del motor de IA visto desde el servidor (GET /api/estado, cualquier sesión) ----
+  async estadoAgente(): Promise<{ motorIa: boolean }> {
+    return this.request<{ motorIa: boolean }>('/api/estado');
+  }
+
   // ---- Usuarios y roles (rutas reales del backend; solo ADMIN) ----
   async listarUsuarios(): Promise<Usuario[]> {
     type Crudo = Record<string, unknown>;
@@ -1009,9 +1014,25 @@ async function responde(url: string): Promise<boolean> {
   }
 }
 
+/** Qué alcanza el navegador por sí mismo (el modo Directo necesita llegar al motor de IA sin pasar por Spring). */
 export async function verificarServicios(): Promise<{ spring: boolean; fastapi: boolean }> {
   const [spring, fastapi] = await Promise.all([responde(SPRING_BOOT_URL), responde(FASTAPI_URL)]);
   return { spring, fastapi };
+}
+
+/**
+ * Estado para los indicadores. En producción el motor de IA es privado y el navegador no lo alcanza:
+ * entonces se pregunta a Spring, que sí llega a él por la red interna.
+ */
+export async function estadoDelAgente(): Promise<{ spring: boolean; fastapi: boolean }> {
+  const directo = await verificarServicios();
+  if (!directo.spring || directo.fastapi || !springApi.isAuthenticated()) return directo;
+  try {
+    const { motorIa } = await springApi.estadoAgente();
+    return { spring: true, fastapi: motorIa === true };
+  } catch {
+    return directo;
+  }
 }
 
 export const SERVICE_URLS = { spring: SPRING_BOOT_URL, fastapi: FASTAPI_URL } as const;
