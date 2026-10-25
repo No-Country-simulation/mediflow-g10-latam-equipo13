@@ -1,0 +1,20 @@
+# Proxy HTTPS de producción (certificado automático y gratis de Let's Encrypt).
+# Solo publica la API de Spring en /spring/*: FastAPI y MySQL quedan en la red interna de Docker,
+# así nadie usa el motor de IA (ni gasta la cuota de Gemini) sin pasar por el login.
+{$DOMINIO} {
+	encode zstd gzip
+
+	handle_path /spring/* {
+		reverse_proxy backend:8080 {
+			# El análisis con Gemini puede tardar varios minutos cuando el servicio está saturado.
+			transport http {
+				read_timeout 330s
+				write_timeout 330s
+			}
+		}
+	}
+
+	handle {
+		respond "MediFlow API: las rutas viven en /spring/" 404
+	}
+}

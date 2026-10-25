@@ -1,0 +1,24 @@
+# Producción en un servidor (VM gratis de OCI): agrega Caddy con HTTPS automático delante de Spring.
+# Lo usa scripts/instalar-servidor.sh. A mano:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build mysql fastapi backend caddy
+# El frontend no corre aquí: lo sirve Vercel.
+services:
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DOMINIO: ${DOMINIO:?Define DOMINIO en .env (por ejemplo 129-80-1-2.sslip.io)}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:
