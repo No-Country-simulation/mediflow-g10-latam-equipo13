@@ -47,6 +47,8 @@ public class AIClient {
         rapida.setReadTimeout(Duration.ofSeconds(5));
         this.restClientRapido = builder.clone().baseUrl(baseUrl).requestFactory(rapida).build();
         this.restClient = builder.baseUrl(baseUrl).build();
+        // La URL no es secreta y es lo primero que hay que confirmar si Spring no llega al agente.
+        log.info("Agente de IA en {}", baseUrl);
     }
 
     /**
@@ -58,7 +60,7 @@ public class AIClient {
             restClientRapido.get().uri("/salud").retrieve().toBodilessEntity();
             return true;
         } catch (RestClientException e) {
-            log.warn("El agente de IA no respondió a la consulta de estado: {}", e.getClass().getSimpleName());
+            log.warn("El agente de IA no respondió a la consulta de estado: {}", causa(e));
             return false;
         }
     }
@@ -150,7 +152,7 @@ public class AIClient {
             if (esTimeout(e)) {
                 throw tiempoAgotado(operacion, e);
             }
-            log.error("IA no disponible al {}: {}", operacion, e.getClass().getSimpleName());
+            log.error("IA no disponible al {}: {}", operacion, causa(e));
             throw new AIClientException("No se pudo conectar con el servicio de IA. Verifica que FastAPI esté encendido.", 503, e);
         } catch (HttpStatusCodeException e) {
             int status = e.getStatusCode().value();
@@ -165,6 +167,15 @@ public class AIClient {
             log.error("Error al {}: {}", operacion, e.getClass().getSimpleName());
             throw new AIClientException("No se pudo interpretar la respuesta del servicio de IA.", 502, e);
         }
+    }
+
+    /** Causa de fondo de un fallo de red, p. ej. "ConnectException: Connection refused" (sin contenido clínico). */
+    static String causa(Throwable e) {
+        Throwable raiz = e;
+        while (raiz.getCause() != null && raiz.getCause() != raiz) {
+            raiz = raiz.getCause();
+        }
+        return raiz.getClass().getSimpleName() + (raiz.getMessage() != null ? ": " + raiz.getMessage() : "");
     }
 
     /** El plazo de lectura se puede agotar al recibir la respuesta o al leer su cuerpo. */
