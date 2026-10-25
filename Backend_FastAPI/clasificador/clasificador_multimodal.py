@@ -17,7 +17,10 @@ from agente.reglas import CATEGORIAS
 logger = logging.getLogger("mediflow.ia")
 
 MODELO = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
-# Ante saturación de Gemini (503/429) se reintenta con esperas crecientes: ~50 s en total.
+# Si el modelo principal está saturado (503/429) o ya no existe (404), se prueba al instante el siguiente
+# de esta lista. GEMINI_MODELOS_RESPALDO="" la desactiva.
+RESPALDO_POR_DEFECTO = "gemini-3.6-flash,gemini-3.5-flash"
+# Si todos los modelos están saturados, se reintenta la lista completa con esperas crecientes: ~50 s en total.
 ESPERAS_REINTENTO = (5, 15, 30)
 MAX_INTENTOS = len(ESPERAS_REINTENTO) + 1
 
@@ -67,37 +70,63 @@ def _cliente():
     return genai.Client(api_key=api_key)
 
 
+def modelos() -> list[str]:
+    """El modelo principal y, detrás, los de respaldo (sin repetir)."""
+    respaldo = os.environ.get("GEMINI_MODELOS_RESPALDO", RESPALDO_POR_DEFECTO)
+    lista = [MODELO] + [m.strip() for m in respaldo.split(",") if m.strip()]
+    return list(dict.fromkeys(lista))
+
+
 def _es_transitorio(error: Exception) -> bool:
     texto = str(error)
     return any(marca in texto for marca in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded"))
 
 
+def _modelo_inexistente(error: Exception) -> bool:
+    texto = str(error)
+    return "404" in texto or "NOT_FOUND" in texto
+
+
 def _generar(cliente, contenido) -> dict | None:
-    """Llama al modelo con reintentos ante saturación (503/429). No registra datos clínicos."""
-    for intento in range(1, MAX_INTENTOS + 1):
-        try:
-            respuesta = cliente.models.generate_content(
-                model=MODELO,
-                contents=contenido,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                    # No se usan herramientas: se desactiva la llamada automática de funciones.
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-                ),
-            )
-            datos = json.loads(respuesta.text)
-            if isinstance(datos, list) and datos:
-                datos = datos[0]
-            return datos if isinstance(datos, dict) else None
-        except Exception as error:  # noqa: BLE001 - se informa el tipo, nunca el contenido
-            if _es_transitorio(error) and intento < MAX_INTENTOS:
-                espera = ESPERAS_REINTENTO[intento - 1]
-                logger.warning("Gemini saturado (intento %d/%d); reintento en %ds", intento, MAX_INTENTOS, espera)
-                time.sleep(espera)
-                continue
-            logger.error("Fallo de Gemini (%s) en el intento %d", type(error).__name__, intento)
-            return None
+    """
+    Llama a Gemini probando los modelos en orden: si uno está saturado o ya no existe, pasa al siguiente
+    sin esperar. Si todos están saturados, reintenta la lista con esperas crecientes. No registra datos clínicos.
+    """
+    lista = modelos()
+    for ronda in range(1, MAX_INTENTOS + 1):
+        alguno_saturado = False
+        for modelo in lista:
+            try:
+                respuesta = cliente.models.generate_content(
+                    model=modelo,
+                    contents=contenido,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.1,
+                        # No se usan herramientas: se desactiva la llamada automática de funciones.
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                    ),
+                )
+                datos = json.loads(respuesta.text)
+                if isinstance(datos, list) and datos:
+                    datos = datos[0]
+                if modelo != lista[0]:
+                    logger.warning("Respondió el modelo de respaldo %s", modelo)
+                return datos if isinstance(datos, dict) else None
+            except Exception as error:  # noqa: BLE001 - se informa el tipo, nunca el contenido
+                if _es_transitorio(error) or _modelo_inexistente(error):
+                    alguno_saturado = alguno_saturado or _es_transitorio(error)
+                    logger.warning("Modelo %s no disponible (%s); se prueba el siguiente", modelo, type(error).__name__)
+                    continue
+                logger.error("Fallo de Gemini (%s) con el modelo %s", type(error).__name__, modelo)
+                return None
+        if not alguno_saturado:
+            break  # ningún modelo existe: esperar no lo arregla
+        if ronda < MAX_INTENTOS:
+            espera = ESPERAS_REINTENTO[ronda - 1]
+            logger.warning("Todos los modelos saturados (ronda %d/%d); reintento en %ds", ronda, MAX_INTENTOS, espera)
+            time.sleep(espera)
+    logger.error("Gemini no respondió con ningún modelo tras %d rondas", MAX_INTENTOS)
     return None
 
 

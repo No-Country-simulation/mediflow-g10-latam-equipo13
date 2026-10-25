@@ -131,6 +131,7 @@ def salud():
         "estado": "ok",
         "version": VERSION,
         "modelo_ia": ia.MODELO,
+        "modelos_respaldo": ia.modelos()[1:],
         "gemini_configurado": bool(os.getenv("GEMINI_API_KEY")),
         "oci_habilitado": oci_storage.oci_habilitado(),
         "alertas_webhook": bool(os.getenv("ALERTA_WEBHOOK_URL")),
