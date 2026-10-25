@@ -5,6 +5,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/spring", "destination": "https://backend-production-c0f3.up.railway.app/" },
+    { "source": "/spring/:ruta*", "destination": "https://backend-production-c0f3.up.railway.app/:ruta*" },
     { "source": "/((?!spring|fastapi).*)", "destination": "/index.html" }
   ],
   "headers": [
