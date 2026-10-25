@@ -25,6 +25,14 @@ class AIClientTest {
     }
 
     @Test
+    void causa_muestraLaExcepcionDeFondoYSuMensaje() {
+        var error = new org.springframework.web.client.ResourceAccessException("I/O error on POST request",
+                new java.net.ConnectException("Connection refused"));
+        assertEquals("ConnectException: Connection refused", AIClient.causa(error));
+        assertEquals("IllegalStateException", AIClient.causa(new IllegalStateException()));
+    }
+
+    @Test
     void nombreSeguro_dejaSoloCaracteresPermitidos() {
         assertEquals("receta_m_dica__1_.pdf", AIClient.nombreSeguro("receta médica (1).pdf"));
         assertEquals("documento", AIClient.nombreSeguro(null));
