@@ -31,6 +31,7 @@ import {
   procesarArchivo,
   procesarTexto,
   useAuth,
+  verificarServicios,
   type DocumentoUnificado,
   type ModoProcesamiento,
 } from '../lib/api';
@@ -103,8 +104,22 @@ export default function UploadPage() {
   const [enCurso, setEnCurso] = useState<string | null>(null);
   const [segundos, setSegundos] = useState(0);
   const [pasoResultado, setPasoResultado] = useState(8);
+  const [directoDisponible, setDirectoDisponible] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const previewsRef = useRef<string[]>([]);
+
+  // En producción el motor de IA no se publica (solo Spring): sin él, el modo Directo se desactiva.
+  useEffect(() => {
+    let vivo = true;
+    verificarServicios().then(({ fastapi }) => {
+      if (!vivo) return;
+      setDirectoDisponible(fastapi);
+      if (!fastapi && isAuthenticated) setModo('spring');
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [isAuthenticated]);
 
   // Libera las vistas previas al salir de la pantalla.
   useEffect(() => {
@@ -295,8 +310,14 @@ export default function UploadPage() {
                   key={valor}
                   type="button"
                   onClick={() => setModo(valor)}
-                  disabled={(valor === 'spring' && !isAuthenticated) || procesando}
-                  title={valor === 'spring' && !isAuthenticated ? 'Inicia sesión para guardar documentos' : undefined}
+                  disabled={(valor === 'spring' && !isAuthenticated) || (valor === 'fastapi' && !directoDisponible) || procesando}
+                  title={
+                    valor === 'spring' && !isAuthenticated
+                      ? 'Inicia sesión para guardar documentos'
+                      : valor === 'fastapi' && !directoDisponible
+                        ? 'El modo Directo no está disponible en este despliegue: usa Persistente'
+                        : undefined
+                  }
                   className={cn(
                     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed',
                     modo === valor ? 'bg-white text-ink-900 shadow-sm' : 'text-white/60 hover:text-white'
