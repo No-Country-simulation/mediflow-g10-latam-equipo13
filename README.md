@@ -189,11 +189,12 @@ cd Back-End/MediFlow && ./mvnw test
 cd mediflow-frontend && npm run typecheck && npm run build
 ```
 
-## Despliegue gratis (Vercel + VM Always Free de OCI)
+## Despliegue gratis
 
-Frontend en Vercel y backend (Spring, FastAPI y MySQL) en una VM gratuita de OCI con Docker Compose y Caddy
-(HTTPS automático), con solo la API de Spring expuesta a internet. `scripts/instalar-servidor.sh` deja la VM
-lista. Paso a paso en [`DESPLIEGUE.md`](./DESPLIEGUE.md).
+Frontend en Vercel, backend (Spring y el agente de IA en un solo contenedor) en Hugging Face Spaces y MySQL en
+Aiven, con solo la API de Spring expuesta a internet (`deploy/huggingface/`). Como alternativa, una VM Always
+Free de OCI con Docker Compose y Caddy (`scripts/instalar-servidor.sh`). Paso a paso en
+[`DESPLIEGUE.md`](./DESPLIEGUE.md).
 
 ## Estructura del repositorio
 

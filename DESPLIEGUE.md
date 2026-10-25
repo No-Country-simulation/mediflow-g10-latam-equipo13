@@ -1,111 +1,121 @@
-# Despliegue gratis: Vercel (frontend) + VM Always Free de OCI (backend)
+# Despliegue gratis
 
 ```
-Navegador ──► Vercel (frontend) ──/spring/*──► VM de OCI: Caddy (HTTPS) ──► Spring Boot
-                                                                         ├─► FastAPI (red interna)
-                                                                         └─► MySQL (red interna)
+Navegador ──► Vercel (frontend) ──/spring/*──► Hugging Face Space: Spring Boot ──► FastAPI (mismo contenedor)
+                                                        │
+                                                        └──► Aiven: MySQL (con SSL)
 ```
 
-- **Vercel** sirve el frontend (`mediflow-frontend/vercel.json`) y reenvía `/spring/*` a la VM.
-- **La VM** corre el mismo Docker Compose del proyecto, más **Caddy**, que saca el certificado HTTPS gratis.
-  Solo la API de Spring queda expuesta: FastAPI y MySQL quedan en la red interna, así nadie usa el motor de IA
-  (ni gasta la cuota de Gemini) sin pasar por el login.
+- **Vercel** sirve el frontend (`mediflow-frontend/vercel.json`) y reenvía `/spring/*` al backend.
+- **Hugging Face Spaces** (Docker, plan gratis: 2 vCPU y 16 GB) corre Spring y el agente de IA en un solo
+  contenedor (`deploy/huggingface/`). Solo Spring es público: FastAPI escucha dentro del contenedor, así nadie usa
+  el motor de IA (ni gasta la cuota de Gemini) sin pasar por el login.
+- **Aiven** aloja MySQL en su plan gratis, con conexión cifrada.
 - En producción el modo **Directo** del frontend se desactiva solo; se procesa en modo **Persistente**.
-- Costo: **0**. La VM Ampere de la capa Always Free de OCI no vence.
+- Costo: **0**, sin tarjeta. El Space se duerme tras 48 h sin visitas y despierta solo con la primera (1–2 min).
 
-## 1. Crear la VM en OCI
+## 1. Base de datos en Aiven
 
-1. En [cloud.oracle.com](https://cloud.oracle.com), menú ☰ → **Compute → Instances → Create instance**.
-2. **Name:** `mediflow`.
-3. **Image and shape → Edit:**
-   - **Image:** Canonical **Ubuntu 24.04**.
-   - **Shape:** **Ampere → VM.Standard.A1.Flex**, **2 OCPU y 12 GB** (dentro de la capa gratis, que llega a 4/24).
-4. **Networking:** deja crear una VCN y una subred pública nuevas, con **Assign a public IPv4 address** activado.
-5. **Add SSH keys:** **Generate a key pair for me → Save private key**. Guarda el archivo (por ejemplo en
-   `C:\Users\<tu usuario>\.ssh\mediflow-oci.key`). Sin esa llave no se puede entrar a la VM.
-6. **Create.** Cuando quede en **Running**, copia la **Public IP address**.
+1. Crea una cuenta en [aiven.io](https://aiven.io) (con GitHub o Google).
+2. **Create service → MySQL → plan Free**, la región disponible más cercana, nombre `mediflow-db` → **Create**.
+3. Cuando quede en **Running**, en **Overview → Connection information** están *Host*, *Port*, *User*
+   (`avnadmin`), *Password* y *Database* (`defaultdb`).
 
-Si aparece **"Out of capacity"**: cambia el **Availability domain** (AD-2, AD-3), prueba con 1 OCPU y 6 GB, o
-reintenta más tarde. Es frecuente en la capa gratis y no tiene que ver con tu cuenta.
+La URL de conexión para Spring queda así (con tu host y puerto):
 
-## 2. Abrir los puertos 80 y 443
-
-En la página de la instancia → **Subnet** (enlace) → **Security Lists → Default Security List → Add Ingress Rules**:
-
-| Source CIDR | IP Protocol | Destination Port Range |
-|---|---|---|
-| `0.0.0.0/0` | TCP | `80` |
-| `0.0.0.0/0` | TCP | `443` |
-
-El 22 (SSH) ya viene abierto. El firewall interno de la VM lo abre el script del paso 3.
-
-## 3. Instalar MediFlow en la VM
-
-Desde tu equipo, entra por SSH (en Windows, PowerShell):
-
-```powershell
-ssh -i C:\Users\<tu usuario>\.ssh\mediflow-oci.key ubuntu@<IP-PUBLICA>
+```
+jdbc:mysql://HOST:PORT/defaultdb?sslMode=REQUIRED&serverTimezone=UTC
 ```
 
-Si Windows reclama permisos de la llave ("UNPROTECTED PRIVATE KEY FILE"):
+Las tablas las crea Spring al arrancar (Flyway). Aiven exige llave primaria en cada tabla y todas la tienen.
 
-```powershell
-icacls C:\Users\<tu usuario>\.ssh\mediflow-oci.key /inheritance:r /grant:r "$($env:USERNAME):R"
-```
+## 2. Space en Hugging Face
 
-Ya en la VM:
+1. Crea una cuenta en [huggingface.co](https://huggingface.co) → **New Space**:
+   - **Space name:** `mediflow-api` · **SDK:** **Docker** (plantilla *Blank*) · **Hardware:** *CPU basic* (gratis).
+   - **Visibility:** **Public**. Vercel necesita llegar a la API; los archivos del Space no tienen claves.
+2. En el Space → **Files → Add file → Upload files**: sube los tres archivos de `deploy/huggingface/`
+   (`Dockerfile`, `arrancar.sh` y `README.md`, que reemplaza al que crea Hugging Face) → **Commit**.
+3. **Settings → Variables and secrets.** Como *Secrets* (no se muestran después de guardarlos):
+
+| Secreto | Valor |
+|---|---|
+| `DB_URL` | La URL `jdbc:mysql://…` del paso 1 |
+| `DB_USER` | `avnadmin` |
+| `DB_PASSWORD` | La contraseña de Aiven |
+| `JWT_SECRET` | 48 bytes aleatorios en base64 (ver abajo) |
+| `MEDIFLOW_ADMIN_USER` | Usuario del administrador inicial |
+| `MEDIFLOW_ADMIN_PASSWORD` | Contraseña del administrador inicial (mínimo 8 caracteres) |
+| `GEMINI_API_KEY` | Clave de Google Gemini |
+| `OCI_USER`, `OCI_TENANCY`, `OCI_FINGERPRINT`, `OCI_REGION`, `OCI_KEY_CONTENT` | Opcionales: activan OCI Object Storage (ver `.env.example`) |
+
+   Y como *Variable* (pública): `GEMINI_MODEL` = `gemini-3.8-flash`.
+
+4. Hugging Face construye la imagen (la primera vez, 5–10 minutos; se ve en **Logs → Build**). Cuando diga
+   **Running**, la API queda en `https://<usuario>-mediflow-api.hf.space`. Comprobación:
+   `https://<usuario>-mediflow-api.hf.space/swagger-ui/index.html`.
+
+Para generar `JWT_SECRET` en tu equipo (no lo pegues en chats ni en el repositorio):
 
 ```bash
-git clone -b main https://github.com/No-Country-simulation/mediflow-g10-latam-equipo13.git mediflow
-cd mediflow
-bash scripts/instalar-servidor.sh
+openssl rand -base64 48
 ```
 
-El script instala Docker, abre el firewall de la VM y te pide:
+En Windows PowerShell 5.1:
 
-- **Dominio:** propone `<ip-con-guiones>.sslip.io`, una dirección gratis que apunta a la IP de la VM. Acepta con Enter.
-- **Usuario y contraseña del administrador inicial** de MediFlow.
-- **Clave de Google Gemini.**
+```powershell
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+```
 
-Las contraseñas de la base y el secreto del JWT se generan al azar. Todo queda en `mediflow/.env`, que solo
-puede leer tu usuario de la VM y nunca va al repositorio. Al final debe decir
-**"Listo: https://…sslip.io/spring/ responde"**. La primera vez tarda varios minutos (compila Spring).
+La imagen usa el código de la rama `main` de GitHub. Para tomar cambios nuevos: **Settings → Factory rebuild**.
 
-Para actualizar después de un cambio en `main`: `cd mediflow && bash scripts/instalar-servidor.sh`.
+## 3. Conectar Vercel con el backend
 
-### OCI Object Storage (opcional)
-
-Sin configurarlo, el agente funciona igual y solo omite los buckets. Para activarlo, agrega a `mediflow/.env`
-las cinco variables `OCI_USER`, `OCI_TENANCY`, `OCI_FINGERPRINT`, `OCI_REGION` y `OCI_KEY_CONTENT` (ver
-`.env.example`) y vuelve a correr el script.
-
-## 4. Conectar Vercel con la VM
-
-En `mediflow-frontend/vercel.json`, agrega esta regla **al inicio** de `rewrites` (el script la imprime con tu
-dominio):
+En `mediflow-frontend/vercel.json`, agrega esta regla **al inicio** de `rewrites`:
 
 ```json
-{ "source": "/spring/:ruta*", "destination": "https://<ip-con-guiones>.sslip.io/spring/:ruta*" },
+{ "source": "/spring/:ruta*", "destination": "https://<usuario>-mediflow-api.hf.space/:ruta*" },
 ```
 
 Haz push a `main`: Vercel publica solo. Prueba el login con el administrador inicial y los tres casos de prueba.
 
-Si los análisis largos de Gemini (1 a 5 minutos cuando está saturado) se cortan en el proxy de Vercel, la
-alternativa es que el navegador llame directo a la VM: variable `VITE_SPRING_BOOT_URL` en el proyecto de Vercel
-con `https://<dominio>/spring` y, en Spring, permitir el origen del sitio de Vercel (CORS).
+Si los análisis largos de Gemini (1 a 5 minutos cuando está saturado) se cortan en algún proxy, la alternativa
+es que el navegador llame directo al Space: variable `VITE_SPRING_BOOT_URL` en el proyecto de Vercel con la URL
+del Space y, en Spring, permitir el origen del sitio de Vercel (CORS).
 
 ## Problemas frecuentes
 
 | Síntoma | Qué revisar |
 |---|---|
-| El script se queda esperando y no dice "Listo" | `sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs backend caddy` |
-| Caddy no obtiene el certificado | Que los puertos 80 y 443 estén abiertos en la Security List (paso 2) |
-| No conecta por SSH | Usuario `ubuntu`, la IP pública correcta y la llave descargada al crear la VM |
+| El Space queda en *Build error* | **Logs → Build**: casi siempre es la descarga de dependencias; **Factory rebuild** |
+| El Space queda en *Runtime error* | **Logs → Container**: si dice *Communications link failure*, revisa `DB_URL`, usuario y contraseña de Aiven |
+| El login dice "no está conectado a este despliegue" | Falta el rewrite del paso 3 o el Space está dormido (ábrelo una vez) |
+
+## Alternativa: VM Always Free de OCI
+
+Si hay capacidad Ampere en tu región, una VM gratis de OCI corre todo (incluido MySQL) con el Docker Compose
+del proyecto y Caddy para el HTTPS (`docker-compose.prod.yml`, `infra/caddy/Caddyfile`).
+
+1. **Compute → Instances → Create instance:** Ubuntu 24.04, *VM.Standard.A1.Flex* (1–4 OCPU, 6–24 GB), IP
+   pública y **Generate a key pair for me** (guarda la llave privada).
+2. **Subnet → Security Lists → Add Ingress Rules:** `0.0.0.0/0` TCP 80 y TCP 443.
+3. Por SSH (`ssh -i <llave> ubuntu@<IP>`):
+
+   ```bash
+   git clone https://github.com/No-Country-simulation/mediflow-g10-latam-equipo13.git mediflow
+   cd mediflow && bash scripts/instalar-servidor.sh
+   ```
+
+   El script instala Docker, abre el firewall de la VM, pide las claves en la terminal (las de la base y el JWT
+   las genera al azar), propone un dominio gratis `<ip-con-guiones>.sslip.io` y levanta los contenedores.
+4. En Vercel, el rewrite apunta a `https://<ip-con-guiones>.sslip.io/spring/:ruta*`.
+
+"Out of capacity" es frecuente en la capa gratis: cambia de *Availability domain*, baja a 1 OCPU o reintenta
+más tarde.
 
 ## Seguridad
 
-- Las claves (Gemini, OCI, administrador) se escriben solo en la terminal de la VM: nunca en el repositorio.
+- Las claves (Gemini, base de datos, JWT, OCI, administrador) van solo en los secretos del Space o en el `.env`
+  del servidor: nunca en el repositorio.
 - Usa documentos de prueba con datos inventados: los archivos se envían a un servicio externo de IA.
-- Al terminar el hackathon, rota las claves de Gemini y OCI.
-- El código también acepta plataformas sin archivos (OCI por variables, puerto en `PORT`), por si algún día
-  se mueve el backend a otro proveedor.
+- Al terminar el hackathon, rota las claves de Gemini y OCI, y la contraseña de Aiven.
