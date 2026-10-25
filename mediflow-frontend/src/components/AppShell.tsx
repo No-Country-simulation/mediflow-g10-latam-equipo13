@@ -20,7 +20,7 @@ import AlertasUrgentes from './AlertasUrgentes';
 import PaletaComandos, { type Comando } from './PaletaComandos';
 import { UserMenu } from './ui';
 import { cn } from '../lib/design-system';
-import { useAuth, verificarServicios, type Usuario } from '../lib/api';
+import { useAuth, estadoDelAgente, type Usuario } from '../lib/api';
 
 interface NavItem {
   to: string;
@@ -80,7 +80,7 @@ export default function AppShell() {
     let t = 0;
     const fallos = { spring: 0, fastapi: 0 };
     const comprobar = async () => {
-      const r = await verificarServicios();
+      const r = await estadoDelAgente();
       if (!vivo) return;
       fallos.spring = r.spring ? 0 : fallos.spring + 1;
       fallos.fastapi = r.fastapi ? 0 : fallos.fastapi + 1;

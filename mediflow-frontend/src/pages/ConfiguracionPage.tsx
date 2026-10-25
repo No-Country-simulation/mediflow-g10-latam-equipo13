@@ -14,7 +14,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Badge, Button, Card, Input, Select, useToastHelpers } from '../components/ui';
-import { SERVICE_URLS, mensajeError, verificarServicios } from '../lib/api';
+import { SERVICE_URLS, estadoDelAgente, mensajeError } from '../lib/api';
 import {
   TIPOS_DOCUMENTO,
   cargarConfig,
@@ -136,7 +136,7 @@ export default function ConfiguracionPage() {
 
   const probar = async () => {
     setProbando(true);
-    setServicios(await verificarServicios());
+    setServicios(await estadoDelAgente());
     setProbando(false);
   };
 
@@ -292,7 +292,7 @@ export default function ConfiguracionPage() {
         <dl className="space-y-3 text-sm">
           {([
             ['API principal (Spring Boot)', SERVICE_URLS.spring, servicios?.spring],
-            ['Motor de IA (FastAPI)', SERVICE_URLS.fastapi, servicios?.fastapi],
+            ['Motor de IA (FastAPI)', `${SERVICE_URLS.fastapi} · o a través de la API principal`, servicios?.fastapi],
           ] as const).map(([nombre, url, ok]) => (
             <div key={nombre} className="flex flex-wrap items-center justify-between gap-2 p-3 bg-neutral-50 rounded-lg">
               <div>
@@ -310,7 +310,8 @@ export default function ConfiguracionPage() {
           ))}
         </dl>
         <p className="text-xs text-neutral-400 mt-3">
-          Las URLs se definen en el archivo .env (VITE_SPRING_BOOT_URL y VITE_FASTAPI_URL) y requieren reiniciar el servidor de desarrollo.
+          En producción el motor de IA es privado: su estado se consulta a través de la API principal. En desarrollo, las URLs
+          se definen en el .env (VITE_SPRING_BOOT_URL y VITE_FASTAPI_URL).
         </p>
       </Card>
     </div>
