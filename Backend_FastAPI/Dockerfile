@@ -6,5 +6,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN python -m pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
+# uvicorn lee UVICORN_HOST y UVICORN_PORT. En Railway se define UVICORN_HOST=:: para escuchar también
+# por IPv6 (la red privada entre servicios lo necesita).
+ENV UVICORN_HOST=0.0.0.0 \
+    UVICORN_PORT=8000
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app"]
