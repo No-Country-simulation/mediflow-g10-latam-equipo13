@@ -5,3 +5,5 @@ dist
 *.log
 .DS_Store
 *.tsbuildinfo
+# Vínculo local con el proyecto de Vercel (lo crea la CLI)
+.vercel
