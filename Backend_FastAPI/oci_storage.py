@@ -17,6 +17,8 @@ Perfil de credenciales:
   Por defecto usa el perfil [DEFAULT] de ~/.oci/config.
   Para usar otro (ej. Hackaton), definir la variable de entorno OCI_PROFILE.
     PowerShell:  $env:OCI_PROFILE = "Hackaton"
+  Sin archivo (Railway, Render...): OCI_USER, OCI_TENANCY, OCI_FINGERPRINT, OCI_REGION y
+  OCI_KEY_CONTENT (la llave privada completa). Si están las cinco, tienen prioridad sobre el archivo.
 """
 import hashlib
 import json
@@ -32,6 +34,16 @@ import oci
 
 PERFIL_OCI = os.getenv("OCI_PROFILE", "DEFAULT")
 ARCHIVO_CONFIG_OCI = os.getenv("OCI_CONFIG_FILE", "~/.oci/config")
+
+# Alternativa al archivo para plataformas sin disco propio (Railway, Render...): si están las cinco
+# variables se usan en lugar del archivo. La llave privada va completa en OCI_KEY_CONTENT.
+VARIABLES_OCI = {
+    "user": "OCI_USER",
+    "tenancy": "OCI_TENANCY",
+    "fingerprint": "OCI_FINGERPRINT",
+    "region": "OCI_REGION",
+    "key_content": "OCI_KEY_CONTENT",
+}
 
 # Nombres exactos de los buckets existentes en mediflow-hackathon.
 BUCKET_RECIBIDOS = "BktRecibidos"
@@ -58,20 +70,37 @@ _cliente = None
 _namespace = None
 
 
+def config_desde_variables() -> dict | None:
+    """Configuración de OCI armada con variables de entorno, o None si falta alguna."""
+    config = {clave: os.getenv(variable, "").strip() for clave, variable in VARIABLES_OCI.items()}
+    if not all(config.values()):
+        return None
+    # Los paneles de variables suelen guardar la llave en una sola línea, con "\n" escritos a mano.
+    config["key_content"] = config["key_content"].replace("\\n", "\n")
+    frase = os.getenv("OCI_KEY_PASSPHRASE", "").strip()
+    if frase:
+        config["pass_phrase"] = frase
+    return config
+
+
 def _get_cliente():
     """Crea el cliente OCI una sola vez y lo reutiliza."""
     global _cliente, _namespace
     if _cliente is None:
-        config = oci.config.from_file(
-            file_location=ARCHIVO_CONFIG_OCI,
-            profile_name=PERFIL_OCI,
-        )
+        config = config_desde_variables()
+        origen = "variables de entorno"
+        if config is None:
+            config = oci.config.from_file(
+                file_location=ARCHIVO_CONFIG_OCI,
+                profile_name=PERFIL_OCI,
+            )
+            origen = f"archivo, perfil {PERFIL_OCI}"
         cliente = oci.object_storage.ObjectStorageClient(
             config, retry_strategy=oci.retry.DEFAULT_RETRY_STRATEGY
         )
         namespace = cliente.get_namespace().data
         _cliente, _namespace = cliente, namespace
-        logger.info("Cliente OCI listo | perfil=%s | region=%s", PERFIL_OCI, config["region"])
+        logger.info("Cliente OCI listo | origen=%s | region=%s", origen, config["region"])
     return _cliente, _namespace
 
 
@@ -310,10 +339,10 @@ def enrutar_json_estructurado(referencia_json: dict, destino: str) -> dict:
 
 
 def oci_habilitado() -> bool:
-    """OCI se usa solo si hay archivo de configuración y no se deshabilitó explícitamente."""
+    """OCI se usa si hay variables o archivo de configuración y no se deshabilitó explícitamente."""
     if os.getenv("OCI_DESHABILITADO", "").lower() in ("1", "true", "si", "sí"):
         return False
-    return os.path.isfile(os.path.expanduser(ARCHIVO_CONFIG_OCI))
+    return config_desde_variables() is not None or os.path.isfile(os.path.expanduser(ARCHIVO_CONFIG_OCI))
 
 
 PATRON_ORIGINAL = re.compile(r"\d{4}/\d{2}/\d{2}/[0-9a-f-]{36}_[A-Za-z0-9._-]+")
