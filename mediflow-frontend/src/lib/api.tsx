@@ -79,20 +79,29 @@ export function normalizarSesion(data: Record<string, unknown>): { token: string
 }
 
 /**
- * Con el proxy de desarrollo de Vite (URL relativa), si el backend está apagado Vite responde 500/502/504
- * con el cuerpo vacío. Un error real del backend trae cuerpo, así que se distinguen.
+ * Una respuesta HTML en una ruta relativa nunca viene del backend (Spring y FastAPI responden JSON o vacío):
+ * es la página del hosting (p. ej. Vercel) porque ese despliegue no tiene el backend conectado.
+ */
+const esPaginaDelHosting = (response: Response) => (response.headers.get('content-type') ?? '').includes('text/html');
+
+/**
+ * Con un proxy (Vite, nginx o Vercel; URL relativa), si el backend está apagado el proxy responde 500/502/504
+ * con el cuerpo vacío, o el hosting devuelve su propia página HTML. Un error real del backend trae cuerpo JSON.
  */
 async function backendApagado(response: Response, baseUrl: string): Promise<boolean> {
-  if (!baseUrl.startsWith('/') || ![500, 502, 503, 504].includes(response.status)) return false;
+  if (!baseUrl.startsWith('/')) return false;
+  if (esPaginaDelHosting(response)) return true;
+  if (![500, 502, 503, 504].includes(response.status)) return false;
   const cuerpo = await response.clone().text().catch(() => '');
   return cuerpo.trim() === '';
 }
 
 const MENSAJE_BACKEND_APAGADO = (nombre: string) =>
-  `No se pudo conectar con ${nombre}. Verifica que el servidor esté encendido.`;
+  `No se pudo conectar con ${nombre}. El servidor está apagado o no está conectado a este despliegue.`;
 
-const SPRING_BOOT_URL = import.meta.env.VITE_SPRING_BOOT_URL || 'http://localhost:8080';
-const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || 'http://localhost:8000';
+// Por defecto, rutas relativas: el proxy de Vite (desarrollo), nginx (Docker) o Vercel las reenvía al backend.
+const SPRING_BOOT_URL = import.meta.env.VITE_SPRING_BOOT_URL || '/spring';
+const FASTAPI_URL = import.meta.env.VITE_FASTAPI_URL || '/fastapi';
 
 // ============================================
 // TIPOS COMPARTIDOS
@@ -985,9 +994,10 @@ async function responde(url: string): Promise<boolean> {
   const timer = window.setTimeout(() => ctrl.abort(), 4000);
   try {
     if (url.startsWith('/')) {
-      // Mismo origen (proxy de Vite): si el servidor de destino está caído, Vite responde 5xx.
+      // Mismo origen (proxy): si el destino está caído el proxy responde 5xx; si el despliegue no tiene
+      // backend conectado, el hosting devuelve su página HTML.
       const r = await fetch(url, { signal: ctrl.signal });
-      return r.status < 500;
+      return r.status < 500 && !esPaginaDelHosting(r);
     }
     // no-cors: resuelve si el servidor responde (aunque sea 401/404), falla si no está accesible.
     await fetch(url, { mode: 'no-cors', signal: ctrl.signal });

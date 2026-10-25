@@ -26,8 +26,8 @@ npm run dev               # http://localhost:5173
 ## Variables de entorno (`.env`)
 | Variable | Para qué sirve |
 |---|---|
-| `VITE_SPRING_BOOT_URL` | URL de la API principal. Con `/spring` usa el proxy de Vite |
-| `VITE_FASTAPI_URL` | URL del motor de IA. Con `/fastapi` usa el proxy de Vite |
+| `VITE_SPRING_BOOT_URL` | URL de la API principal. Por defecto `/spring` (proxy de Vite, nginx o Vercel) |
+| `VITE_FASTAPI_URL` | URL del motor de IA. Por defecto `/fastapi` (proxy de Vite, nginx o Vercel) |
 | `SPRING_TARGET` | Dónde corre Spring (por ejemplo `http://localhost:8088`) |
 | `FASTAPI_TARGET` | Dónde corre FastAPI (por ejemplo `http://localhost:8002`) |
 | `VITE_SKIP_AUTH` | `true` salta el login. **Solo para revisar pantallas en desarrollo** |
@@ -82,6 +82,23 @@ src/
 ## Producción
 `Dockerfile` compila con Vite y sirve con nginx (`nginx.conf`), que hace de proxy a `/spring` y `/fastapi`.
 Se levanta junto al resto con `docker compose up -d --build` desde la raíz del repositorio.
+
+### Vercel (solo el frontend)
+`vercel.json` compila con Vite, sirve la SPA (cualquier ruta devuelve `index.html`) y deja libres `/spring` y `/fastapi`.
+Despliegue desde esta carpeta: `npx vercel login` una vez y luego `npx vercel --prod`.
+
+Sin backend público, el landing y las pantallas cargan, pero el login y el procesamiento muestran
+"no está conectado a este despliegue". Para conectarlo, cuando Spring y FastAPI tengan una URL HTTPS pública,
+agrega estas reglas **al inicio** de `rewrites` en `vercel.json` y vuelve a desplegar:
+
+```json
+{ "source": "/spring/:ruta*", "destination": "https://TU-API-SPRING/:ruta*" },
+{ "source": "/fastapi/:ruta*", "destination": "https://TU-API-FASTAPI/:ruta*" },
+```
+
+Si el análisis con Gemini supera el tiempo máximo del proxy de Vercel, la alternativa es apuntar
+`VITE_SPRING_BOOT_URL` y `VITE_FASTAPI_URL` (variables del proyecto en Vercel) directo a esas URL y permitir en el
+backend el origen del sitio (CORS: `CORS_ORIGINS` en FastAPI; en Spring hay que agregar la configuración).
 
 ## Probar el flujo completo
 1. Entra con el administrador inicial (`MEDIFLOW_ADMIN_USER`) o regístrate y pide que te asignen un rol.
