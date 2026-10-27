@@ -1,6 +1,6 @@
 import { Fragment, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Settings, LogOut } from 'lucide-react';
+import { User, Settings, LogOut, BookOpen } from 'lucide-react';
 import { cn } from '../../lib/design-system';
 import { Avatar } from './Avatar';
 
@@ -152,13 +152,15 @@ export interface UserMenuProps {
     role: string;
   };
   onProfileClick?: () => void;
+  onGuideClick?: () => void;
   onSettingsClick?: () => void;
   onLogoutClick: () => void;
 }
 
-export function UserMenu({ user, onProfileClick, onSettingsClick, onLogoutClick }: UserMenuProps) {
+export function UserMenu({ user, onProfileClick, onGuideClick, onSettingsClick, onLogoutClick }: UserMenuProps) {
   const items: DropdownItem[] = [];
   if (onProfileClick) items.push({ label: 'Perfil', icon: <User className="w-4 h-4" />, onClick: onProfileClick });
+  if (onGuideClick) items.push({ label: 'Guía de mi rol', icon: <BookOpen className="w-4 h-4" />, onClick: onGuideClick });
   if (onSettingsClick) items.push({ label: 'Configuración', icon: <Settings className="w-4 h-4" />, onClick: onSettingsClick });
   if (items.length) items.push({ divider: true });
   items.push({ label: 'Cerrar sesión', icon: <LogOut className="w-4 h-4" />, onClick: onLogoutClick, danger: true });

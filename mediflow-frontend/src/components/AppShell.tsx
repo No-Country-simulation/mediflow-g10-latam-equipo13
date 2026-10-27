@@ -13,6 +13,7 @@ import {
   LogIn,
   Search,
   FlaskConical,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import Logo from './Logo';
@@ -112,12 +113,15 @@ export default function AppShell() {
   const visibles = navItems.filter((i) => !i.roles || !user || i.roles.includes(user.rol));
   const actual: Pick<NavItem, 'label' | 'descripcion'> | undefined = location.pathname.startsWith('/documentos/')
     ? { label: 'Detalle del documento', descripcion: 'Decisión del agente, datos extraídos y trazabilidad' }
-    : visibles.find((i) => location.pathname.startsWith(i.to));
+    : location.pathname.startsWith('/guia')
+      ? { label: 'Guía de mi rol', descripcion: 'Qué hace tu rol y cómo hacerlo paso a paso' }
+      : visibles.find((i) => location.pathname.startsWith(i.to));
   const esMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
   const comandos = useMemo<Comando[]>(
     () => [
       ...visibles.map((i) => ({ id: i.to, grupo: 'Ir a' as const, titulo: i.label, detalle: i.descripcion, Icono: i.icon, ruta: i.to })),
+      { id: '/guia', grupo: 'Ir a', titulo: 'Guía de mi rol', detalle: 'Qué hace tu rol, paso a paso', Icono: BookOpen, ruta: '/guia' },
       { id: 'demo', grupo: 'Acciones', titulo: 'Probar los 3 escenarios', detalle: 'Rutina, urgencia y ambiguo', Icono: FlaskConical, ruta: '/procesar' },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,6 +245,7 @@ export default function AppShell() {
                   <AlertasUrgentes />
                   <UserMenu
                     user={{ name: user.nombre, role: user.rol }}
+                    onGuideClick={() => navigate('/guia')}
                     onSettingsClick={user.rol === 'ADMIN' ? () => navigate('/configuracion') : undefined}
                     onLogoutClick={handleLogout}
                   />
