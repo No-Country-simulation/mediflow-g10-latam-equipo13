@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Logo from './Logo';
 import AlertasUrgentes from './AlertasUrgentes';
+import AsistenteVirtual from './AsistenteVirtual';
 import PaletaComandos, { type Comando } from './PaletaComandos';
 import { UserMenu } from './ui';
 import { cn } from '../lib/design-system';
@@ -272,6 +273,7 @@ export default function AppShell() {
       </div>
 
       <PaletaComandos abierta={paleta} onCerrar={() => setPaleta(false)} comandos={comandos} />
+      <AsistenteVirtual />
     </div>
   );
 }

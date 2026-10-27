@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import Response  # noqa: E402
 from starlette.concurrency import run_in_threadpool  # noqa: E402
 
+import asistente  # noqa: E402
 import notificaciones  # noqa: E402
 import oci_storage  # noqa: E402
 from agente import reglas  # noqa: E402
@@ -26,7 +27,14 @@ from agente.escenarios_demo import ESCENARIOS  # noqa: E402
 from agente.grafo import IANoDisponible, construir_grafo, ejecutar_triaje  # noqa: E402
 from agente.reglas import ConfigTriaje  # noqa: E402
 from clasificador import clasificador_multimodal as ia  # noqa: E402
-from modelos import ConfigEntrada, ResultadoTriaje, SolicitudRevision, SolicitudTexto  # noqa: E402
+from modelos import (  # noqa: E402
+    ConfigEntrada,
+    RespuestaAsistente,
+    ResultadoTriaje,
+    SolicitudAsistente,
+    SolicitudRevision,
+    SolicitudTexto,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger("mediflow.api")
@@ -271,6 +279,16 @@ async def registrar_revision(solicitud: SolicitudRevision):
     except Exception as error:  # noqa: BLE001
         logger.error("Fallo al registrar la revisión en OCI (%s)", type(error).__name__)
         raise HTTPException(status_code=502, detail="No se pudo actualizar OCI.") from error
+
+
+@app.post("/asistente", response_model=RespuestaAsistente, tags=["Asistente"])
+async def preguntar_al_asistente(solicitud: SolicitudAsistente):
+    """Asistente virtual: responde dudas sobre el uso de MediFlow (no preguntas clínicas)."""
+    historial = [mensaje.model_dump() for mensaje in solicitud.historial]
+    respuesta = await run_in_threadpool(asistente.responder, solicitud.pregunta, solicitud.rol_usuario, historial)
+    if respuesta is None:
+        raise HTTPException(status_code=503, detail="El asistente no está disponible en este momento. Intenta de nuevo en unos segundos.")
+    return {"respuesta": respuesta}
 
 
 @app.get("/resultado-prueba", response_model=ResultadoTriaje, tags=["Triaje"])

@@ -31,6 +31,23 @@ class SolicitudRevision(BaseModel):
     datos_corregidos: dict[str, Any] | None = None
 
 
+class MensajeAsistente(BaseModel):
+    rol: Literal["usuario", "asistente"]
+    texto: str = Field(max_length=2000)
+
+
+class SolicitudAsistente(BaseModel):
+    """Pregunta al asistente virtual sobre el uso de MediFlow."""
+
+    pregunta: str = Field(min_length=2, max_length=500, examples=["¿Cómo apruebo una cuenta nueva?"])
+    rol_usuario: Literal["ADMIN", "AUDITOR", "PERSONAL"] | None = Field(default=None, description="Rol de quien pregunta")
+    historial: list[MensajeAsistente] = Field(default_factory=list, max_length=20, description="Mensajes previos del chat")
+
+
+class RespuestaAsistente(BaseModel):
+    respuesta: str
+
+
 class Paciente(BaseModel):
     nombre: str | None = None
     rut: str | None = None

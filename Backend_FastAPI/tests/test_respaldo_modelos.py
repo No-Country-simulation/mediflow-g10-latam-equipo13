@@ -62,6 +62,14 @@ def test_todos_saturados_reintenta_la_lista_con_esperas(sin_esperas):
     assert sin_esperas == list(ia.ESPERAS_REINTENTO)
 
 
+def test_una_sola_ronda_no_espera(sin_esperas):
+    saturado = Exception("503 UNAVAILABLE")
+    cliente = _ClienteFalso({"principal": saturado, "respaldo-1": saturado, "respaldo-2": saturado})
+    assert ia._generar(cliente, ["doc"], rondas=1) is None
+    assert cliente.llamadas == ["principal", "respaldo-1", "respaldo-2"]
+    assert sin_esperas == []
+
+
 def test_ninguno_existe_no_espera(sin_esperas):
     falta = Exception("404 NOT_FOUND")
     cliente = _ClienteFalso({"principal": falta, "respaldo-1": falta, "respaldo-2": falta})

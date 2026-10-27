@@ -227,6 +227,12 @@ export interface AlertaUrgente {
   fecha: string | null;
 }
 
+/** Mensaje previo del chat que se envía al asistente como contexto. */
+export interface MensajeAsistente {
+  rol: 'usuario' | 'asistente';
+  texto: string;
+}
+
 export interface Medicamento {
   nombre: string;
   dosis?: string | null;
@@ -719,6 +725,16 @@ class ApiClient {
   async alertas(desde?: string): Promise<AlertaUrgente[]> {
     const query = desde ? `?desde=${encodeURIComponent(desde)}` : '';
     return this.request<AlertaUrgente[]>(`/api/documentos/alertas${query}`);
+  }
+
+  // ---- Asistente virtual (responde con IA; el rol lo toma el servidor de la sesión) ----
+  async preguntarAsistente(pregunta: string, historial: MensajeAsistente[], signal?: AbortSignal): Promise<string> {
+    const { respuesta } = await this.request<{ respuesta: string }>('/api/asistente', {
+      method: 'POST',
+      body: JSON.stringify({ pregunta, historial }),
+      signal,
+    });
+    return respuesta;
   }
 
   // ---- Reglas de triaje (las aplica el agente en cada documento) ----
