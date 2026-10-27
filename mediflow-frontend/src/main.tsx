@@ -19,6 +19,7 @@ import HistorialPage from "./pages/HistorialPage";
 import AuditoriaPage from "./pages/AuditoriaPage";
 import ConfiguracionPage from "./pages/ConfiguracionPage";
 import UsuariosPage from "./pages/UsuariosPage";
+import GuiaPage from "./pages/GuiaPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="/documentos/:id" element={<DocumentDetailPage />} />
                 <Route path="/colas" element={<QueuePage />} />
                 <Route path="/historial" element={<HistorialPage />} />
+                <Route path="/guia" element={<GuiaPage />} />
 
                 <Route element={<ProtectedRoute roles={["ADMIN", "AUDITOR"]} />}>
                   <Route path="/auditoria" element={<AuditoriaPage />} />
