@@ -115,6 +115,7 @@ No publiques credenciales, archivos `.env`, claves privadas ni configuraciones r
 | `GET /salud` | Qué está configurado (sin exponer secretos) |
 | `GET /documentos/original?ruta=` | Original guardado en `BktRecibidos` |
 | `POST /documentos/revision` | Decisión del auditor: mueve el JSON de `BktAuditoria-humana` a `BktProcesados` |
+| `POST /asistente` | Asistente virtual: `pregunta`, `rol_usuario` e `historial`. Responde dudas de uso con Gemini (un intento por modelo, sin esperas); 503 si no hay modelo disponible |
 
 La respuesta sigue el formato del ejemplo del brief (`clasificacion`, `datos_extraidos`, `decision_enrutamiento`,
 `almacenamiento_oci`) y agrega `validacion` y `traza`. El detalle está en `/docs`.

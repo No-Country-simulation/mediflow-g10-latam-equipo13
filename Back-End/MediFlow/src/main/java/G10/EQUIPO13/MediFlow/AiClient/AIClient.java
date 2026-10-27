@@ -23,6 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,6 +38,8 @@ public class AIClient {
     private final RestClient restClient;
     /** Solo para la consulta de estado: no debe colgarse los minutos que se le dan a Gemini. */
     private final RestClient restClientRapido;
+    /** Para el asistente virtual: un chat no puede esperar lo que tarda un análisis. */
+    private final RestClient restClientAsistente;
 
     public AIClient(
             RestClient.Builder builder,
@@ -46,6 +49,10 @@ public class AIClient {
         rapida.setConnectTimeout(Duration.ofSeconds(3));
         rapida.setReadTimeout(Duration.ofSeconds(5));
         this.restClientRapido = builder.clone().baseUrl(baseUrl).requestFactory(rapida).build();
+        SimpleClientHttpRequestFactory asistente = new SimpleClientHttpRequestFactory();
+        asistente.setConnectTimeout(Duration.ofSeconds(3));
+        asistente.setReadTimeout(Duration.ofSeconds(40));
+        this.restClientAsistente = builder.clone().baseUrl(baseUrl).requestFactory(asistente).build();
         this.restClient = builder.baseUrl(baseUrl).build();
         // La URL no es secreta y es lo primero que hay que confirmar si Spring no llega al agente.
         log.info("Agente de IA en {}", baseUrl);
@@ -133,6 +140,28 @@ public class AIClient {
                 .body(solicitud)
                 .retrieve()
                 .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
+    }
+
+    /**
+     * Pregunta al asistente virtual (POST /asistente). El rol lo decide el servidor según la sesión;
+     * null si la persona no tiene un rol con guía. No registra el texto de la pregunta.
+     */
+    public String preguntarAsistente(String pregunta, String rol, List<Map<String, String>> historial) {
+        Map<String, Object> cuerpo = new HashMap<>();
+        cuerpo.put("pregunta", pregunta);
+        cuerpo.put("rol_usuario", rol);
+        cuerpo.put("historial", historial);
+
+        Map<String, Object> respuesta = ejecutar("consultar al asistente", () -> restClientAsistente.post()
+                .uri("/asistente")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(cuerpo)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
+        if (respuesta.get("respuesta") instanceof String texto && !texto.isBlank()) {
+            return texto;
+        }
+        throw new AIClientException("El asistente devolvió una respuesta vacía.");
     }
 
     // ------------------------------------------------------------------

@@ -165,6 +165,7 @@ curl -X POST http://localhost:8002/analizar-texto -H "Content-Type: application/
 | `GET /api/documentos/alertas` | ADMIN, PERSONAL, AUDITOR | Casos urgentes recientes |
 | `GET` · `PUT /api/configuracion` | todos · ADMIN | Reglas de triaje que aplica el agente |
 | `GET /api/user/findAll` · `PATCH /api/user/{id}/rol/{rol}` | ADMIN | Gestión de usuarios y roles |
+| `POST /api/asistente` | sesión | Asistente virtual: responde dudas sobre MediFlow según el rol de la sesión |
 
 **Motor de IA (FastAPI)** — documentación en `/docs`.
 
@@ -175,6 +176,7 @@ curl -X POST http://localhost:8002/analizar-texto -H "Content-Type: application/
 | `GET /demo/{escenario}` | Recorre el grafo real con IA simulada |
 | `GET /grafo` · `GET /reglas` · `GET /salud` | Diagrama del grafo, reglas por defecto y estado de la configuración |
 | `GET /documentos/original` · `POST /documentos/revision` | Original en OCI y cierre del ciclo de revisión en OCI |
+| `POST /asistente` | Asistente virtual con Gemini (un intento por modelo, sin preguntas clínicas) |
 
 ## Pruebas
 

@@ -87,13 +87,15 @@ def _modelo_inexistente(error: Exception) -> bool:
     return "404" in texto or "NOT_FOUND" in texto
 
 
-def _generar(cliente, contenido) -> dict | None:
+def _generar(cliente, contenido, rondas: int = MAX_INTENTOS) -> dict | None:
     """
     Llama a Gemini probando los modelos en orden: si uno está saturado o ya no existe, pasa al siguiente
     sin esperar. Si todos están saturados, reintenta la lista con esperas crecientes. No registra datos clínicos.
+    `rondas` = 1 prueba cada modelo una sola vez, sin esperas (para respuestas que no pueden tardar).
     """
     lista = modelos()
-    for ronda in range(1, MAX_INTENTOS + 1):
+    rondas = max(1, min(rondas, MAX_INTENTOS))
+    for ronda in range(1, rondas + 1):
         alguno_saturado = False
         for modelo in lista:
             try:
@@ -122,11 +124,11 @@ def _generar(cliente, contenido) -> dict | None:
                 return None
         if not alguno_saturado:
             break  # ningún modelo existe: esperar no lo arregla
-        if ronda < MAX_INTENTOS:
+        if ronda < rondas:
             espera = ESPERAS_REINTENTO[ronda - 1]
-            logger.warning("Todos los modelos saturados (ronda %d/%d); reintento en %ds", ronda, MAX_INTENTOS, espera)
+            logger.warning("Todos los modelos saturados (ronda %d/%d); reintento en %ds", ronda, rondas, espera)
             time.sleep(espera)
-    logger.error("Gemini no respondió con ningún modelo tras %d rondas", MAX_INTENTOS)
+    logger.error("Gemini no respondió con ningún modelo tras %d rondas", rondas)
     return None
 
 
